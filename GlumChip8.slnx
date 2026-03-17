@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="GlumChip8.Console/GlumChip8.Console.csproj" />
+  <Project Path="GlumChip8.Core/GlumChip8.Core.csproj" />
+  <Project Path="GlumChip8.Tests/GlumChip8.Tests.csproj" />
+</Solution>
