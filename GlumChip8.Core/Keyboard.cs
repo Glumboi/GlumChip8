@@ -9,68 +9,33 @@ namespace GlumChip8.Core
     {
         private readonly bool[] _keys = new bool[16];
 
-        public void PressKey(int key)
+        // map raylib keys to chip8 values
+        private readonly Dictionary<KeyboardKey, byte> _keyMap = new()
         {
-            if (key < 0 || key > 15)
-                throw new ArgumentOutOfRangeException(nameof(key), "Key must be between 0 and 15.");
-            _keys[key] = true;
-        }
+            { KeyboardKey.One, 0x1 }, { KeyboardKey.Two, 0x2 }, { KeyboardKey.Three, 0x3 }, { KeyboardKey.Four, 0xC },
+            { KeyboardKey.Q, 0x4 },   { KeyboardKey.W, 0x5 },   { KeyboardKey.E, 0x6 },     { KeyboardKey.R, 0xD },
+            { KeyboardKey.A, 0x7 },   { KeyboardKey.S, 0x8 },   { KeyboardKey.D, 0x9 },     { KeyboardKey.F, 0xE },
+            { KeyboardKey.Z, 0xA },   { KeyboardKey.X, 0x0 },   { KeyboardKey.C, 0xB },     { KeyboardKey.V, 0xF }
+        };
 
-        public void ReleaseKey(int key)
-        {
-            if (key < 0 || key > 15)
-                throw new ArgumentOutOfRangeException(nameof(key), "Key must be between 0 and 15.");
-            _keys[key] = false;
-        }
+        public bool IsKeyPressed(int key) => _keys[key];
 
-        public bool IsKeyPressed(int key)
+        public int GetLastPressedHexKey()
         {
-            if (key < 0 || key > 15)
-                throw new ArgumentOutOfRangeException(nameof(key), "Key must be between 0 and 15.");
-            return _keys[key];
+            KeyboardKey key = (KeyboardKey)Raylib.GetKeyPressed();
+            if (_keyMap.TryGetValue(key, out byte hexValue))
+            {
+                return hexValue;
+            }
+            return -1;
         }
 
         public void UpdateFromPCKeyBoard()
         {
-            // reset all keys first
-            for (int i = 0; i < 16; i++)
-                _keys[i] = false;
-            // TODO: implement fully
-            if (Raylib.IsKeyDown(KeyboardKey.One))
-                _keys[0x1] = true;
-            if (Raylib.IsKeyDown(KeyboardKey.Two))
-                _keys[0x2] = true;
-            if (Raylib.IsKeyDown(KeyboardKey.Three))
-                _keys[0x3] = true;
-            if (Raylib.IsKeyDown(KeyboardKey.Four)) 
-                _keys[0xC] = true;
-
-            if (Raylib.IsKeyDown(KeyboardKey.Q))
-                _keys[0x4] = true;
-            if (Raylib.IsKeyDown(KeyboardKey.W))
-                _keys[0x5] = true;
-            if (Raylib.IsKeyDown(KeyboardKey.E)) 
-                _keys[0x6] = true;
-            if (Raylib.IsKeyDown(KeyboardKey.R))
-                _keys[0xD] = true;
-
-            if (Raylib.IsKeyDown(KeyboardKey.A))
-                _keys[0x7] = true;
-            if (Raylib.IsKeyDown(KeyboardKey.S)) 
-                _keys[0x8] = true;
-            if (Raylib.IsKeyDown(KeyboardKey.D))
-                _keys[0x9] = true;
-            if (Raylib.IsKeyDown(KeyboardKey.F))
-                _keys[0xE] = true;
-
-            if (Raylib.IsKeyDown(KeyboardKey.Z))
-                _keys[0xA] = true;
-            if (Raylib.IsKeyDown(KeyboardKey.X))
-                _keys[0x0] = true;
-            if (Raylib.IsKeyDown(KeyboardKey.C))
-                _keys[0xB] = true;
-            if (Raylib.IsKeyDown(KeyboardKey.V))
-                _keys[0xF] = true;
+            foreach (var pair in _keyMap)
+            {
+                _keys[pair.Value] = Raylib.IsKeyDown(pair.Key);
+            }
         }
     }
 }
