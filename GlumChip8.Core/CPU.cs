@@ -25,9 +25,15 @@ namespace GlumChip8.Core
         RAM _ram = new();
         Keyboard _keyboard = new();
         Display _display = new();
+        Sound _sound = new();
 
         string _romTitle = "[NO GAME]";
         public string RomTitle { get => _romTitle; }
+
+        public CPU()
+        {
+            _sound.Init();
+        }
 
         public void Push(UInt16 value)
         {
@@ -361,6 +367,11 @@ namespace GlumChip8.Core
                     }
                 }
                 _display.Render();
+                if (_st != 0)
+                {
+                    _sound.Beep();
+                    _st--;
+                }
                 Raylib.EndDrawing();
             }
             Raylib.CloseWindow();

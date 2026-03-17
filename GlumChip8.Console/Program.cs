@@ -7,7 +7,7 @@ namespace GlumChip8.Console
         static void Main(string[] args)
         {
             CPU cpu = new();
-            const string file = @"F:\Github\GlumChip8\TestRoms\2-ibm-logo.ch8";
+            const string file = @"";
             if (!File.Exists(file))
             {
                 System.Console.WriteLine($"File {file} does not exist.");
