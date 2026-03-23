@@ -78,6 +78,13 @@ namespace GlumChip8.GUI.ViewModels
         }
 
         [RelayCommand]
+        public void Refresh()
+        {
+            RomCollection.Clear();
+            LoadChip8Roms(_emulatorSettings.RomLocation);
+        }
+
+        [RelayCommand]
         private void TogglePause()
         {
             Chip8.TogglePause();

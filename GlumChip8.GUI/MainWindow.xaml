@@ -86,6 +86,8 @@
                             <MenuItem Command="{Binding OpenRomCommand}" Header="Open ROM (.ch8)..."/>
                             <MenuItem Command="{Binding ResetRomCommand}"  Header="Restart ROM"/>
                             <MenuItem Command="{Binding CloseRomCommand}" Header="Close ROM"/>
+                            <Separator/>
+                            <MenuItem Command="{Binding RefreshCommand}"  Header="Reload ROMs"/>
                         </MenuItem>
                     </Menu>
                     <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Grid.Column="1">
@@ -94,6 +96,9 @@
                         </ui:Button>
                         <ui:Button Margin="10 0 0 0" Command="{Binding CloseRomCommand}">
                             <ui:SymbolIcon Symbol="Stop24"  />
+                        </ui:Button>
+                        <ui:Button Command="{Binding ResetRomCommand}" Margin="10 0 0 0">
+                            <ui:SymbolIcon Symbol="ArrowClockwise48"  />
                         </ui:Button>
                     </StackPanel>
                 </Grid>
