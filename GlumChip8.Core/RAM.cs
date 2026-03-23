@@ -14,7 +14,7 @@ namespace GlumChip8.Core
 
     public class RAM
     {
-        const int MEMORY_SIZE = 4096;
+        public const int MEMORY_SIZE = 65536;
         UInt16[] _data = new UInt16[MEMORY_SIZE];
 
         public void WriteByte(UInt16 address, byte value)

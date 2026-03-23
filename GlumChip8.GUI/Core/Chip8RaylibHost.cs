@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
@@ -33,12 +34,15 @@ namespace GlumChip8.GUI.Core
         private const int WM_ENTERSIZEMOVE = 0x0231;
         private const int WM_EXITSIZEMOVE = 0x0232;
 
+        private const int FPS_OFFSET = 10;
+
         private IntPtr _raylibHandle;
 
         private Chip8System _chip8System = new();
         public Chip8System Chip8System { get => _chip8System; }
 
         private bool _windowResizing = false;
+        private bool _displayFps = false;
 
         public Chip8RaylibHost()
         {
@@ -83,6 +87,8 @@ namespace GlumChip8.GUI.Core
                 Raylib.BeginDrawing();
                 Raylib.ClearBackground(Raylib_cs.Color.Black);
                 _chip8System.Update(); // This handles CPU cycle + Raylib Draw calls
+                if (_displayFps)
+                    Raylib.DrawFPS(FPS_OFFSET, FPS_OFFSET);
                 Raylib.EndDrawing();
             }
         }
@@ -133,11 +139,17 @@ namespace GlumChip8.GUI.Core
         public void InitWindow(int w, int h, string title)
         {
             Raylib.SetConfigFlags(ConfigFlags.UndecoratedWindow | ConfigFlags.HiddenWindow);
+            Raylib.SetTargetFPS(60);
             Raylib.InitWindow(w, h, title);
             unsafe
             {
                 _raylibHandle = (nint)Raylib.GetWindowHandle();
             }
+        }
+
+        public void ToggleFps()
+        {
+            _displayFps = _displayFps ^ true;
         }
     }
 }

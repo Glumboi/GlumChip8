@@ -1,13 +1,13 @@
 ﻿using Raylib_cs;
 using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace GlumChip8.Core
 {
     public class Sound
     {
         private Raylib_cs.Sound _buzzSound;
+        private byte[] _patternBuffer = new byte[16]; // XO-CHIP pattern buffer
+        private double _frequency = 4000;             // pitch for playback
 
         public void Init()
         {
@@ -21,13 +21,29 @@ namespace GlumChip8.Core
 
         public void Beep()
         {
-            Raylib.PlaySound(_buzzSound);
+            if (_buzzSound.Stream.Buffer != IntPtr.Zero)
+                Raylib.PlaySound(_buzzSound);
+        }
+
+        public void LoadPattern(byte[] pattern)
+        {
+            if (pattern.Length != 16)
+                throw new ArgumentException("Audio pattern must be 16 bytes.");
+            _patternBuffer = pattern;
+        }
+
+        public void SetFrequency(double freq)
+        {
+            _frequency = freq;
+            // Adjust playback logic if you implement pattern-based sound
         }
 
         ~Sound()
         {
-            Raylib.UnloadSound(_buzzSound);
-            Raylib.CloseAudioDevice();
+            if (_buzzSound.Stream.Buffer != IntPtr.Zero)
+                Raylib.UnloadSound(_buzzSound);
+            if (Raylib.IsAudioDeviceReady())
+                Raylib.CloseAudioDevice();
         }
     }
 }

@@ -81,15 +81,18 @@
                         <ColumnDefinition Width="2*"/>
                         <ColumnDefinition/>
                     </Grid.ColumnDefinitions>
-                    <Menu>
-                        <MenuItem Header="File">
-                            <MenuItem Command="{Binding OpenRomCommand}" Header="Open ROM (.ch8)..."/>
-                            <MenuItem Command="{Binding ResetRomCommand}"  Header="Restart ROM"/>
-                            <MenuItem Command="{Binding CloseRomCommand}" Header="Close ROM"/>
-                            <Separator/>
-                            <MenuItem Command="{Binding RefreshCommand}"  Header="Reload ROMs"/>
-                        </MenuItem>
-                    </Menu>
+                    <StackPanel Orientation="Horizontal">
+                        <Menu>
+                            <MenuItem Header="File">
+                                <MenuItem Command="{Binding OpenRomCommand}" Header="Open ROM (.ch8)..."/>
+                                <MenuItem Command="{Binding ResetRomCommand}"  Header="Restart ROM"/>
+                                <MenuItem Command="{Binding CloseRomCommand}" Header="Close ROM"/>
+                                <Separator/>
+                                <MenuItem Command="{Binding RefreshCommand}"  Header="Reload ROMs"/>
+                            </MenuItem>
+                        </Menu>
+                        <CheckBox Content="Display FPS" Command="{Binding ToggleFpsCommand}"/>
+                    </StackPanel>
                     <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Grid.Column="1">
                         <ui:Button Command="{Binding TogglePauseCommand}">
                             <ui:SymbolIcon Symbol="{Binding PauseRomSymbol}"  />

@@ -140,5 +140,12 @@ namespace GlumChip8.GUI.ViewModels
         {
             Chip8.ResetCurrentRom();
         }
+
+        [RelayCommand]
+        public void ToggleFps()
+        {
+            RaylibHost.ToggleFps();
+        }
     }
+
 }

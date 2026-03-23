@@ -7,10 +7,18 @@ using System.Text;
 
 namespace GlumChip8.Core
 {
+
+    // TODO [add XO support]: https://johnearnest.github.io/Octo/docs/XO-ChipSpecification.html
+
     public class CPU
     {
+        private Random _rng = new Random();
+
+        byte[] _flagRegisters = new byte[16]; // sometimes 8 in SCHIP, 16 in XO-CHIP
+
         // V0-F
         byte[] _registers = new byte[16];
+
         UInt16 _vI = 0; // I register
 
         UInt16 _PC = (ushort)MEMORY_SEGMENTS.ROM_DATA_START; // Program counter
@@ -20,6 +28,8 @@ namespace GlumChip8.Core
         UInt16[] _stack = new UInt16[16];
         byte _SP = 0; // Stack pointer
         byte _dt = 0, _st = 0; // delay timer and sound timer
+
+        private byte _activePlanes = 0b_01; // default plane 0 active
 
         const int CYCLES = 10;
 
@@ -85,7 +95,7 @@ namespace GlumChip8.Core
 
         public void LoadProgram(string title, byte[] program)
         {
-            if (program.Length > 0xFFF - 0x200)
+            if (program.Length > RAM.MEMORY_SIZE - 0x200)
             {
                 throw new ArgumentException("Program is too large to fit in memory!");
             }
@@ -203,6 +213,40 @@ namespace GlumChip8.Core
                                     _PC += 2;
                                 }
                             }
+                            else if ((opcode & 0x000F) == 0x0002)
+                            {
+                                if (x <= y)
+                                {
+                                    for (int j = x; j <= y; j++)
+                                    {
+                                        RAM.WriteByte((ushort)(_vI + (j - x)), _registers[j]);
+                                    }
+                                }
+                                else
+                                {
+                                    for (int j = x; j >= y; j--)
+                                    {
+                                        RAM.WriteByte((ushort)(_vI + (x - j)), _registers[j]);
+                                    }
+                                }
+                            }
+                            else if ((opcode & 0x000F) == 0x0003)
+                            {
+                                if (x <= y)
+                                {
+                                    for (int j = x; j <= y; j++)
+                                    {
+                                        _registers[j] = (byte)RAM.ReadByte((ushort)(_vI + (j - x)));
+                                    }
+                                }
+                                else
+                                {
+                                    for (int j = x; j >= y; j--)
+                                    {
+                                        _registers[j] = (byte)RAM.ReadByte((ushort)(_vI + (x - j)));
+                                    }
+                                }
+                            }
                             break;
                         }
                     case 0x6000:
@@ -269,25 +313,57 @@ namespace GlumChip8.Core
                         {
                             byte x = (byte)((opcode & 0x0F00) >> 8);
                             byte nn = (byte)(opcode & 0x00FF);
-                            byte randomByte = (byte)(new Random().Next(0, 256));
+                            byte randomByte = (byte)_rng.Next(0, 256);
                             WriteRegister(x, (byte)(randomByte & nn));
                             break;
                         }
                     case 0xD000:
                         {
-                            // draw sprite at (Vx, Vy) with width 8 pixels and height N pixels
-                            // set VF to 1 if any pixels are flipped from set to unset when the sprite is drawn, and 0 otherwise
                             byte x = ReadRegister((byte)((opcode & 0x0F00) >> 8));
                             byte y = ReadRegister((byte)((opcode & 0x00F0) >> 4));
                             byte height = (byte)(opcode & 0x000F);
-                            byte[] sprite = new byte[height];
 
-                            for (int j = 0; j < height; j++)
+                            bool collision = false;
+
+                            if (height == 0)
                             {
-                                sprite[j] = (byte)_ram.ReadByte((ushort)(_vI + j));
+                                // DXY0 -> 16x16 XO-CHIP sprite
+                                byte[] sprite16 = new byte[32];
+                                for (int j = 0; j < 32; j++)
+                                {
+                                    sprite16[j] = (byte)RAM.ReadByte((ushort)(_vI + j));
+                                }
+
+                                // DRAW TO ALL ACTIVE PLANES
+                                for (int p = 0; p < 2; p++)
+                                {
+                                    if ((_activePlanes & (1 << p)) != 0)
+                                    {
+                                        collision |= _display.DrawSprite16(x, y, sprite16, p);
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                // Classic 8xN sprite
+                                byte[] sprite8 = new byte[height];
+                                for (int j = 0; j < height; j++)
+                                {
+                                    sprite8[j] = (byte)RAM.ReadByte((ushort)(_vI + j));
+                                }
+
+                                for (int p = 0; p < 2; p++)
+                                {
+                                    if ((_activePlanes & (1 << p)) != 0)
+                                    {
+                                        collision |= _display.DrawSprite(x, y, sprite8, p);
+                                    }
+                                }
                             }
 
-                            _registers[0xF] = (byte)(_display.DrawSprite(x, y, sprite) ? 1 : 0);
+                            // Set VF for collision
+                            _registers[0xF] = (byte)(collision ? 1 : 0);
+
                             break;
                         }
                     case 0xE000:
@@ -317,8 +393,20 @@ namespace GlumChip8.Core
                             }
                             break;
                         }
+
                     case 0xF000:
                         {
+                            if (opcode == 0xF000)
+                            {
+                                ushort high = _ram.ReadByte(_PC);
+                                ushort low = _ram.ReadByte((ushort)(_PC + 1));
+
+                                _vI = (ushort)((high << 8) | low);
+
+                                _PC += 2; // extra advance (Step already did +2)
+                                break;
+                            }
+
                             byte x = (byte)((opcode & 0x0F00) >> 8);
                             switch (opcode & 0x00FF)
                             {
@@ -382,10 +470,68 @@ namespace GlumChip8.Core
                                         WriteRegister(j, (byte)_ram.ReadByte((ushort)(_vI + j)));
                                     }
                                     break;
+                                case 0x0075:
+                                    for (int j = 0; j <= x; j++)
+                                    {
+                                        _flagRegisters[j] = _registers[j];
+                                    }
+                                    break;
+                                case 0x0085:
+                                    for (int j = 0; j <= x; j++)
+                                    {
+                                        _registers[j] = _flagRegisters[j];
+                                    }
+                                    break;
+                                case 0x00D: // Scroll up N pixels
+                                    {
+                                        byte n = (byte)(opcode & 0x000F); // number of pixels to scroll (0–15)
+
+                                        for (int p = 0; p < 2; p++) // loop over all planes
+                                        {
+                                            if ((_activePlanes & (1 << p)) != 0)
+                                            {
+                                                // Scroll existing pixels up by n
+                                                for (int y = 0; y < Display.SCREEN_HEIGHT - n; y++)
+                                                {
+                                                    for (int x2 = 0; x2 < Display.SCREEN_WIDTH; x2++)
+                                                    {
+                                                        _display._planes[p][x2, y] = _display._planes[p][x2, y + n];
+                                                    }
+                                                }
+
+                                                // Clear the bottom n rows
+                                                for (int y = Display.SCREEN_HEIGHT - n; y < Display.SCREEN_HEIGHT; y++)
+                                                {
+                                                    for (int x2 = 0; x2 < Display.SCREEN_WIDTH; x2++)
+                                                    {
+                                                        _display._planes[p][x2, y] = false;
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        break;
+                                    }
                                 default:
                                     Console.WriteLine($"Unknown opcode {opcode:X4}");
                                     break;
                             }
+                            break;
+                        }
+                    case 0xF001:
+                        {
+                            byte x = (byte)((opcode & 0x0F00) >> 8); // VX
+                            _activePlanes = (byte)(ReadRegister(x) & 0x03); // Only 2 bits for 2 planes
+                            break;
+                        }
+                    case 0xF002:
+                        {
+                            byte[] audioPattern = new byte[16];
+                            for (int j = 0; j < 16; j++)
+                            {
+                                audioPattern[j] = (byte)RAM.ReadByte((ushort)(_vI + j));
+                            }
+                            _sound.LoadPattern(audioPattern);
                             break;
                         }
                     default:
