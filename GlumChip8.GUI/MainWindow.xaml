@@ -92,6 +92,9 @@
                         <ui:Button Command="{Binding TogglePauseCommand}">
                             <ui:SymbolIcon Symbol="{Binding PauseRomSymbol}"  />
                         </ui:Button>
+                        <ui:Button Margin="10 0 0 0" Command="{Binding CloseRomCommand}">
+                            <ui:SymbolIcon Symbol="Stop24"  />
+                        </ui:Button>
                     </StackPanel>
                 </Grid>
                 <ContentControl Grid.Row="1">

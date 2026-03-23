@@ -34,16 +34,22 @@ namespace GlumChip8.GUI.Core
         private const int WM_EXITSIZEMOVE = 0x0232;
 
         private IntPtr _raylibHandle;
-        private Chip8System _chip8System;
+
+        private Chip8System _chip8System = new();
+        public Chip8System Chip8System { get => _chip8System; }
+
         private bool _windowResizing = false;
 
-        public Chip8RaylibHost(IntPtr raylibHandle, Chip8System chip8System)
+        public Chip8RaylibHost()
         {
-            _raylibHandle = raylibHandle;
-            _chip8System = chip8System;
-
             // Listen to WPF rendering ticks
             CompositionTarget.Rendering += OnRender;
+        }
+
+        public void UpdateHandle(IntPtr raylibHandle)
+        {
+            _raylibHandle = raylibHandle;
+
         }
 
         protected override void OnWindowPositionChanged(Rect rcBoundingBox)
@@ -65,7 +71,8 @@ namespace GlumChip8.GUI.Core
 
         private void OnRender(object sender, EventArgs e)
         {
-            if (_windowResizing) return; // Don't update system on resize, save performance
+            if (_windowResizing || _raylibHandle == IntPtr.Zero || !Chip8System.Running) return;
+
             // Raylib drawing must happen here to sync with WPF
             if (!Raylib.WindowShouldClose())
             {
@@ -73,8 +80,8 @@ namespace GlumChip8.GUI.Core
                 {
                     SetFocus(_raylibHandle);
                 }
-
                 Raylib.BeginDrawing();
+                Raylib.ClearBackground(Raylib_cs.Color.Black);
                 _chip8System.Update(); // This handles CPU cycle + Raylib Draw calls
                 Raylib.EndDrawing();
             }
@@ -121,6 +128,16 @@ namespace GlumChip8.GUI.Core
             CompositionTarget.Rendering -= OnRender;
             Raylib.CloseWindow();
             Raylib.CloseAudioDevice();
+        }
+
+        public void InitWindow(int w, int h, string title)
+        {
+            Raylib.SetConfigFlags(ConfigFlags.UndecoratedWindow | ConfigFlags.HiddenWindow);
+            Raylib.InitWindow(w, h, title);
+            unsafe
+            {
+                _raylibHandle = (nint)Raylib.GetWindowHandle();
+            }
         }
     }
 }

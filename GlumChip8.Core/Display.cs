@@ -48,20 +48,27 @@ namespace GlumChip8.Core
 
         public void Render()
         {
-            float scaleX = (float)Raylib.GetScreenWidth() / WIDTH;
-            float scaleY = (float)Raylib.GetScreenHeight() / HEIGHT;
+            int screenW = Raylib.GetScreenWidth();
+            int screenH = Raylib.GetScreenHeight();
 
-            for (int x = 0; x < WIDTH; x++)
+            // Prevent division by zero if window is minimized
+            if (screenW == 0 || screenH == 0) return;
+
+            float scaleX = (float)screenW / WIDTH;
+            float scaleY = (float)screenH / HEIGHT;
+
+            for (int y = 0; y < HEIGHT; y++)
             {
-                for (int y = 0; y < HEIGHT; y++)
+                for (int x = 0; x < WIDTH; x++)
                 {
-                    Color color = _pixels[x, y] ? Raylib_cs.Color.White : Raylib_cs.Color.Black;
-                    // Draw using the dynamic scale
-                    Raylib.DrawRectangleV(
-                        new System.Numerics.Vector2(x * scaleX, y * scaleY),
-                        new System.Numerics.Vector2(scaleX, scaleY),
-                        color
-                    );
+                    if (_pixels[x, y])
+                    {
+                        Raylib.DrawRectangleV(
+                            new System.Numerics.Vector2(x * scaleX, y * scaleY),
+                            new System.Numerics.Vector2(scaleX, scaleY),
+                            Color.White
+                        );
+                    }
                 }
             }
         }

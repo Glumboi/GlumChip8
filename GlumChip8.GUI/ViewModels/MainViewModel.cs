@@ -25,10 +25,43 @@ namespace GlumChip8.GUI.ViewModels
 
         EmulatorSettings _emulatorSettings = new();
 
+        public bool IsEmulatorActive => Chip8 != null && Chip8.Running;
+
+        public SymbolRegular PauseRomSymbol
+        {
+            get
+            {
+                if (Chip8.Running)
+                {
+                    return SymbolRegular.Pause48;
+                }
+                else
+                {
+                    return SymbolRegular.Play48;
+                }
+            }
+        }
+
+        public Chip8System Chip8 { get => RaylibHost.Chip8System; }
+
+        private Chip8RaylibHost _raylibHost = new();
+        public Chip8RaylibHost RaylibHost { get => _raylibHost; set => SetProperty(ref _raylibHost, value); }
+
+        private bool _showCollection = true;
+        public bool ShowCollection
+        {
+            get => _showCollection;
+            set => SetProperty(ref _showCollection, value);
+        }
+
+        public ObservableCollection<KeyValuePair<string, string>> RomCollection { get; set; } = new() { };
+
         public MainViewModel()
         {
             _emulatorSettings.LoadConfigFile();
             LoadChip8Roms(_emulatorSettings.RomLocation);
+
+            RaylibHost.InitWindow(640, 320, "RaylibInternal");
         }
 
         void LoadChip8Roms(string load)
@@ -49,6 +82,7 @@ namespace GlumChip8.GUI.ViewModels
         {
             Chip8.TogglePause();
             OnPropertyChanged(nameof(PauseRomSymbol));
+            OnPropertyChanged(nameof(IsEmulatorActive));
         }
 
         [RelayCommand]
@@ -71,41 +105,11 @@ namespace GlumChip8.GUI.ViewModels
 
         public void StartEmulation()
         {
-            var raylibHandle = Chip8.LaunchFromFile(CurrentRomPath);
+            Chip8.LaunchFromFile(CurrentRomPath);
             OnPropertyChanged(nameof(PauseRomSymbol));
+            OnPropertyChanged(nameof(IsEmulatorActive));
             ShowCollection = false;
-            RaylibHost = new Chip8RaylibHost(raylibHandle, Chip8);
         }
-
-        public SymbolRegular PauseRomSymbol
-        {
-            get
-            {
-                if (Chip8.Running)
-                {
-                    return SymbolRegular.Pause48;
-                }
-                else
-                {
-                    return SymbolRegular.Play48;
-                }
-            }
-        }
-
-        private Chip8System _chip8 = new();
-        public Chip8System Chip8 { get => _chip8; set => SetProperty(ref _chip8, value); }
-
-        private Chip8RaylibHost _raylibHost;
-        public Chip8RaylibHost RaylibHost { get => _raylibHost; set => SetProperty(ref _raylibHost, value); }
-
-        private bool _showCollection = true;
-        public bool ShowCollection
-        {
-            get => _showCollection;
-            set => SetProperty(ref _showCollection, value);
-        }
-
-        public ObservableCollection<KeyValuePair<string, string>> RomCollection { get; set; } = new() { };
 
         [RelayCommand]
         public void Play(KeyValuePair<string, string> selectedRom)
@@ -115,11 +119,12 @@ namespace GlumChip8.GUI.ViewModels
             StartEmulation();
         }
 
-
         [RelayCommand]
         public void CloseRom()
         {
             Chip8.SetToDefault();
+            OnPropertyChanged(nameof(PauseRomSymbol));
+            OnPropertyChanged(nameof(IsEmulatorActive));
             ShowCollection = true;
         }
 
