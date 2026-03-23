@@ -1,0 +1,119 @@
+﻿<ui:FluentWindow x:Class="GlumChip8.GUI.MainWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 xmlns:local="clr-namespace:GlumChip8.GUI"
+                 xmlns:VM="clr-namespace:GlumChip8.GUI.ViewModels"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 mc:Ignorable="d"
+                 Title="MainWindow" Height="450" Width="800"
+                 Background="#2d2d2d"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica"
+                 WindowCornerPreference="Round"
+                 Loaded="FluentWindow_Loaded"
+                 WindowStartupLocation="CenterScreen">
+    <ui:FluentWindow.DataContext>
+        <VM:MainViewModel/>
+    </ui:FluentWindow.DataContext>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition />
+        </Grid.RowDefinitions>
+
+        <ui:TitleBar
+            x:Name="TitleBar"
+            Icon="./Assets/icon.png">
+            <ui:TitleBar.Title>
+                <MultiBinding StringFormat="GlumChip8 - {0}">
+                    <Binding Path="CurrentRomPath" />
+                </MultiBinding>
+            </ui:TitleBar.Title>
+        </ui:TitleBar>
+
+        <Border Padding="10" Grid.Row="1">
+            <!-- Main frame -->
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition/>
+                </Grid.RowDefinitions>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition />
+                        <ColumnDefinition Width="2*"/>
+                        <ColumnDefinition/>
+                    </Grid.ColumnDefinitions>
+                    <Menu>
+                        <MenuItem Header="File">
+                            <MenuItem Command="{Binding OpenRomCommand}" Header="Open ROM (.ch8)..."/>
+                            <MenuItem Header="Restart ROM"/>
+                            <MenuItem Header="Close ROM"/>
+                        </MenuItem>
+                    </Menu>
+                    <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Grid.Column="1">
+                        <ui:Button Command="{Binding PauseRomCommand}">
+                            <ui:SymbolIcon Symbol="{Binding PauseRomSymbol}"  />
+                        </ui:Button>
+                    </StackPanel>
+                </Grid>
+                <ContentControl Grid.Row="1">
+                    <ContentControl.Style>
+                        <Style TargetType="ContentControl">
+                            <!-- Default: Show the Raylib Host -->
+                            <Setter Property="Content" Value="{Binding RaylibHost}" />
+
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ShowCollection}" Value="True">
+                                    <!-- Swap to the Collection -->
+                                    <Setter Property="Content" Value="{Binding RomCollection}" />
+                                    <Setter Property="ContentTemplate">
+                                        <Setter.Value>
+                                            <!-- Add this tag -->
+                                            <DataTemplate>
+                                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                                    <ItemsControl ItemsSource="{Binding}">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <WrapPanel Orientation="Horizontal" />
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <!-- Your Card Design -->
+                                                                <ui:Card Margin="5" Width="120" Height="160">
+                                                                    <StackPanel>
+                                                                        <TextBlock  Margin="0,0,0,2" Text="{Binding}" HorizontalAlignment="Center"/>
+                                                                        <ui:Button HorizontalAlignment="Center">
+                                                                            <Grid >
+                                                                                <Grid.ColumnDefinitions>
+                                                                                    <ColumnDefinition Width="Auto"/>
+                                                                                    <ColumnDefinition Width="2*"/>
+                                                                                </Grid.ColumnDefinitions>
+                                                                                <TextBlock Text="Play"/>
+                                                                                <ui:SymbolIcon Margin="2,2,2,2" Grid.Column="1" Symbol="Games48"/>
+                                                                            </Grid>
+                                                                        </ui:Button>
+                                                                    </StackPanel>
+                                                                </ui:Card>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </ScrollViewer>
+                                            </DataTemplate>
+                                        </Setter.Value>
+                                        <!-- And close it here -->
+                                    </Setter>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ContentControl.Style>
+                </ContentControl>
+            </Grid>
+        </Border>
+
+    </Grid>
+</ui:FluentWindow>

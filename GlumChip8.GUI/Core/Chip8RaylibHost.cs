@@ -1,0 +1,120 @@
+﻿using GlumChip8.Core;
+using Raylib_cs;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Windows;
+using System.Windows.Interop;
+using System.Windows.Media;
+
+namespace GlumChip8.GUI.Core
+{
+    public class Chip8RaylibHost : HwndHost
+    {
+        [DllImport("user32.dll")]
+        public static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+        [DllImport("user32.dll")]
+        public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
+        [DllImport("user32.dll")]
+        public static extern IntPtr SetFocus(IntPtr hWnd);
+        [DllImport("user32.dll")]
+        static extern bool MoveWindow(IntPtr hWnd, int X, int Y, int nWidth, int nHeight, bool bRepaint);
+
+        public const int GWL_STYLE = -16;
+        public const int WS_CHILD = 0x40000000;
+        public const int WS_VISIBLE = 0x10000000;
+        private const int WM_ENTERSIZEMOVE = 0x0231;
+        private const int WM_EXITSIZEMOVE = 0x0232;
+
+        private IntPtr _raylibHandle;
+        private Chip8System _chip8System;
+        private bool _windowResizing = false;
+
+        public Chip8RaylibHost(IntPtr raylibHandle, Chip8System chip8System)
+        {
+            _raylibHandle = raylibHandle;
+            _chip8System = chip8System;
+
+            // Listen to WPF rendering ticks
+            CompositionTarget.Rendering += OnRender;
+        }
+
+        protected override void OnWindowPositionChanged(Rect rcBoundingBox)
+        {
+            base.OnWindowPositionChanged(rcBoundingBox);
+
+            int newWidth = (int)rcBoundingBox.Width;
+            int newHeight = (int)rcBoundingBox.Height;
+
+            if (newWidth > 0 && newHeight > 0)
+            {
+                // Resize the Win32 Window handle
+                MoveWindow(_raylibHandle, 0, 0, newWidth, newHeight, true);
+
+                //Tell Raylib the internal framebuffer has changed size
+                Raylib.SetWindowSize(newWidth, newHeight);
+            }
+        }
+
+        private void OnRender(object sender, EventArgs e)
+        {
+            if (_windowResizing) return; // Don't update system on resize, save performance
+            // Raylib drawing must happen here to sync with WPF
+            if (!Raylib.WindowShouldClose())
+            {
+                Raylib.BeginDrawing();
+                _chip8System.Update(); // This handles CPU cycle + Raylib Draw calls
+                Raylib.EndDrawing();
+            }
+        }
+
+        protected override HandleRef BuildWindowCore(HandleRef hwndParent)
+        {
+            // Get current styles
+            int style = GetWindowLong(_raylibHandle, GWL_STYLE);
+
+            // force the window to be a child and REMOVE top-level/popup styles
+            // WS_POPUP (0x80000000) and WS_CHILD (0x40000000) cannot coexist.
+            const int WS_POPUP = unchecked((int)0x80000000);
+            const int WS_CAPTION = 0x00C00000;
+            const int WS_THICKFRAME = 0x00040000;
+
+            style &= ~WS_POPUP;      // Remove popup style
+            style &= ~WS_CAPTION;    // Remove title bar
+            style &= ~WS_THICKFRAME; // Remove resizing border
+            style |= WS_CHILD;       // Add child style
+            style |= WS_VISIBLE;     // Ensure it stays visible
+
+            SetWindowLong(_raylibHandle, GWL_STYLE, style);
+
+            //Set the parent to the WPF-provided handle
+            SetParent(_raylibHandle, hwndParent.Handle);
+            SetFocus(_raylibHandle);
+            HwndSource source = (HwndSource)PresentationSource.FromVisual(this);
+            source.AddHook(WndProc);
+            return new HandleRef(this, _raylibHandle);
+        }
+
+        private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            if (msg == WM_ENTERSIZEMOVE)
+                _windowResizing = true;
+            else if (msg == WM_EXITSIZEMOVE)
+                _windowResizing = false;
+            return IntPtr.Zero;
+        }
+
+        protected override void DestroyWindowCore(HandleRef hwnd)
+        {
+            CompositionTarget.Rendering -= OnRender;
+            Raylib.CloseWindow();
+            Raylib.CloseAudioDevice();
+        }
+    }
+}

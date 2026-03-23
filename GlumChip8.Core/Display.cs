@@ -11,6 +11,7 @@ namespace GlumChip8.Core
         public const int WIDTH = 64;
         public const int HEIGHT = 32;
         private readonly bool[,] _pixels = new bool[WIDTH, HEIGHT];
+
         public void Clear()
         {
             for (int x = 0; x < WIDTH; x++)
@@ -47,19 +48,20 @@ namespace GlumChip8.Core
 
         public void Render()
         {
+            float scaleX = (float)Raylib.GetScreenWidth() / WIDTH;
+            float scaleY = (float)Raylib.GetScreenHeight() / HEIGHT;
+
             for (int x = 0; x < WIDTH; x++)
             {
                 for (int y = 0; y < HEIGHT; y++)
                 {
-                    // Draw as rectangle for better visibility
-                    if (_pixels[x, y])
-                    {
-                        Raylib.DrawRectangle(x * 10, y * 10, 10, 10, Raylib_cs.Color.White);
-                    }
-                    else
-                    {
-                        Raylib.DrawRectangle(x * 10, y * 10, 10, 10, Raylib_cs.Color.Black);
-                    }
+                    Color color = _pixels[x, y] ? Raylib_cs.Color.White : Raylib_cs.Color.Black;
+                    // Draw using the dynamic scale
+                    Raylib.DrawRectangleV(
+                        new System.Numerics.Vector2(x * scaleX, y * scaleY),
+                        new System.Numerics.Vector2(scaleX, scaleY),
+                        color
+                    );
                 }
             }
         }
