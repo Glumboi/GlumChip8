@@ -60,7 +60,6 @@ namespace GlumChip8.GUI.ViewModels
             of.InitialDirectory = Directory.GetCurrentDirectory();
             if ((bool)of.ShowDialog())
             {
-                // Validate if rom
                 CurrentRomPath = of.FileName;
                 var ext = Path.GetExtension(CurrentRomPath);
                 if (String.Equals(ext, ".ch8", StringComparison.OrdinalIgnoreCase) && File.Exists(CurrentRomPath))
@@ -93,7 +92,6 @@ namespace GlumChip8.GUI.ViewModels
             }
         }
 
-        // Chip8 emulator related
         private Chip8System _chip8 = new();
         public Chip8System Chip8 { get => _chip8; set => SetProperty(ref _chip8, value); }
 
@@ -107,7 +105,6 @@ namespace GlumChip8.GUI.ViewModels
             set => SetProperty(ref _showCollection, value);
         }
 
-        // Your existing collection
         public ObservableCollection<KeyValuePair<string, string>> RomCollection { get; set; } = new() { };
 
         [RelayCommand]
