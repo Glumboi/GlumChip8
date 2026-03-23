@@ -110,20 +110,33 @@ namespace GlumChip8.Core
             _PC = (ushort)(opcode & 0x0FFF);
         }
 
-
-
-        public void ResetSystem()
+        private void ResetRegisters()
         {
-            MemoryMarshal.Write(_registers, 0);
+            for (int i = 0; i < _registers.Length; i++)
+            {
+                _registers[i] = 0;
+            }
             _vI = 0;
             _PC = (ushort)MEMORY_SEGMENTS.ROM_DATA_START;
-            _programLength = 0;
-            _stack = new UInt16[16];
             _SP = 0;
             _dt = 0;
             _st = 0;
+        }
+
+        public void ResetCurrentRom()
+        {
+            ResetRegisters();
             _display.Clear();
             _keyboard = new();
+        }
+
+        public void InitSystemDefault()
+        {
+            ResetRegisters();
+            _display.Clear();
+            _keyboard = new();
+            _running = false;
+            _programLength = 0;
         }
 
         public void ExecuteCurrent()

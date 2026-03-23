@@ -7,7 +7,7 @@ namespace GlumChip8.Console
         static void Main(string[] args)
         {
             CPU cpu = new();
-            const string file = @"";
+            const string file = @"F:\Github\GlumChip8\TestRoms\6-keypad.ch8";
             if (!File.Exists(file))
             {
                 System.Console.WriteLine($"File {file} does not exist.");

@@ -3,6 +3,7 @@ using Raylib_cs;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
@@ -68,6 +69,11 @@ namespace GlumChip8.GUI.Core
             // Raylib drawing must happen here to sync with WPF
             if (!Raylib.WindowShouldClose())
             {
+                if (Raylib.IsCursorOnScreen())
+                {
+                    SetFocus(_raylibHandle);
+                }
+
                 Raylib.BeginDrawing();
                 _chip8System.Update(); // This handles CPU cycle + Raylib Draw calls
                 Raylib.EndDrawing();

@@ -31,9 +31,14 @@ namespace GlumChip8.Core
             CPU.SetRunning(!Running);
         }
 
-        public void Reset()
+        public void ResetCurrentRom()
         {
-            CPU.ResetSystem();
+            CPU.ResetCurrentRom();
+        }
+
+        public void SetToDefault()
+        {
+            CPU.InitSystemDefault();
         }
 
         public void Update()
@@ -49,6 +54,7 @@ namespace GlumChip8.Core
         {
             Raylib.SetConfigFlags(ConfigFlags.UndecoratedWindow);
             Raylib.InitWindow(w, h, title.ToString());
+            Raylib.SetTargetFPS(60);
             unsafe
             {
                 return (nint)Raylib.GetWindowHandle();
@@ -58,7 +64,7 @@ namespace GlumChip8.Core
         public IntPtr LaunchFromFile(string file)
         {
             var b = File.ReadAllBytes(file);
-            CPU.ResetSystem();
+            CPU.InitSystemDefault();
             CPU.LoadProgram(Path.GetFileNameWithoutExtension(file), b);
             CPU.SetRunning(true);
             // current handle

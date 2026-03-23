@@ -22,7 +22,6 @@ namespace GlumChip8.Core
         public void Beep()
         {
             Raylib.PlaySound(_buzzSound);
-            System.Console.WriteLine("BEEP!");
         }
 
         ~Sound()

@@ -14,6 +14,40 @@
                  WindowCornerPreference="Round"
                  Loaded="FluentWindow_Loaded"
                  WindowStartupLocation="CenterScreen">
+
+    <ui:FluentWindow.Resources>
+        <DataTemplate x:Key="RomCollectionTemplate">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <ui:Card Margin="5" Width="120" Height="160">
+                                <StackPanel>
+                                    <TextBlock Margin="0,0,0,2" Text="{Binding Key}" HorizontalAlignment="Center"/>
+                                    <ui:Button HorizontalAlignment="Center"
+                                           Click="Play_Button_Click">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="2*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="Play"/>
+                                            <ui:SymbolIcon Margin="2" Grid.Column="1" Symbol="Games48"/>
+                                        </Grid>
+                                    </ui:Button>
+                                </StackPanel>
+                            </ui:Card>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </DataTemplate>
+    </ui:FluentWindow.Resources>
     <ui:FluentWindow.DataContext>
         <VM:MainViewModel/>
     </ui:FluentWindow.DataContext>
@@ -50,12 +84,12 @@
                     <Menu>
                         <MenuItem Header="File">
                             <MenuItem Command="{Binding OpenRomCommand}" Header="Open ROM (.ch8)..."/>
-                            <MenuItem Header="Restart ROM"/>
-                            <MenuItem Header="Close ROM"/>
+                            <MenuItem Command="{Binding ResetRomCommand}"  Header="Restart ROM"/>
+                            <MenuItem Command="{Binding CloseRomCommand}" Header="Close ROM"/>
                         </MenuItem>
                     </Menu>
                     <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Grid.Column="1">
-                        <ui:Button Command="{Binding PauseRomCommand}">
+                        <ui:Button Command="{Binding TogglePauseCommand}">
                             <ui:SymbolIcon Symbol="{Binding PauseRomSymbol}"  />
                         </ui:Button>
                     </StackPanel>
@@ -65,48 +99,10 @@
                         <Style TargetType="ContentControl">
                             <!-- Default: Show the Raylib Host -->
                             <Setter Property="Content" Value="{Binding RaylibHost}" />
-
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding ShowCollection}" Value="True">
-                                    <!-- Swap to the Collection -->
                                     <Setter Property="Content" Value="{Binding RomCollection}" />
-                                    <Setter Property="ContentTemplate">
-                                        <Setter.Value>
-                                            <!-- Add this tag -->
-                                            <DataTemplate>
-                                                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                                    <ItemsControl ItemsSource="{Binding}">
-                                                        <ItemsControl.ItemsPanel>
-                                                            <ItemsPanelTemplate>
-                                                                <WrapPanel Orientation="Horizontal" />
-                                                            </ItemsPanelTemplate>
-                                                        </ItemsControl.ItemsPanel>
-                                                        <ItemsControl.ItemTemplate>
-                                                            <DataTemplate>
-                                                                <!-- Your Card Design -->
-                                                                <ui:Card Margin="5" Width="120" Height="160">
-                                                                    <StackPanel>
-                                                                        <TextBlock  Margin="0,0,0,2" Text="{Binding}" HorizontalAlignment="Center"/>
-                                                                        <ui:Button HorizontalAlignment="Center">
-                                                                            <Grid >
-                                                                                <Grid.ColumnDefinitions>
-                                                                                    <ColumnDefinition Width="Auto"/>
-                                                                                    <ColumnDefinition Width="2*"/>
-                                                                                </Grid.ColumnDefinitions>
-                                                                                <TextBlock Text="Play"/>
-                                                                                <ui:SymbolIcon Margin="2,2,2,2" Grid.Column="1" Symbol="Games48"/>
-                                                                            </Grid>
-                                                                        </ui:Button>
-                                                                    </StackPanel>
-                                                                </ui:Card>
-                                                            </DataTemplate>
-                                                        </ItemsControl.ItemTemplate>
-                                                    </ItemsControl>
-                                                </ScrollViewer>
-                                            </DataTemplate>
-                                        </Setter.Value>
-                                        <!-- And close it here -->
-                                    </Setter>
+                                    <Setter Property="ContentTemplate" Value="{StaticResource RomCollectionTemplate}" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -114,6 +110,5 @@
                 </ContentControl>
             </Grid>
         </Border>
-
     </Grid>
 </ui:FluentWindow>

@@ -1,5 +1,4 @@
-﻿using GalaSoft.MvvmLight.Command;
-using GlumChip8.Core;
+﻿using GlumChip8.Core;
 using GlumChip8.GUI.Core;
 using Microsoft.Win32;
 using Raylib_cs;
@@ -10,10 +9,12 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
 using Wpf.Ui.Controls;
+using GalaSoft.MvvmLight.CommandWpf;
+using CommunityToolkit.Mvvm.Input;
 
 namespace GlumChip8.GUI.ViewModels
 {
-    public class MainViewModel : ViewModelBase
+    public partial class MainViewModel : ViewModelBase
     {
         nint _wpfParentHandle;
         public nint WPFParentHandle { get => _wpfParentHandle; set => SetProperty(ref _wpfParentHandle, value); }
@@ -22,10 +23,12 @@ namespace GlumChip8.GUI.ViewModels
 
         public string CurrentRomPath { get => _currentRomPath; set => SetProperty(ref _currentRomPath, value); }
 
+        EmulatorSettings _emulatorSettings = new();
+
         public MainViewModel()
         {
-            CreateCommands();
-            LoadChip8Roms(Directory.GetCurrentDirectory());
+            _emulatorSettings.LoadConfigFile();
+            LoadChip8Roms(_emulatorSettings.RomLocation);
         }
 
         void LoadChip8Roms(string load)
@@ -34,34 +37,21 @@ namespace GlumChip8.GUI.ViewModels
             foreach (var item in Directory.GetFiles(load))
             {
                 if (Path.GetExtension(item) == ".ch8")
-                    RomCollection.Add(Path.GetFileNameWithoutExtension(item));
+                {
+                    KeyValuePair<string, string> keyValuePair = new KeyValuePair<string, string>(Path.GetFileNameWithoutExtension(item), item);
+                    RomCollection.Add(keyValuePair);
+                }
             }
         }
 
-        private ICommand _pauseRomCommand;
-
-        public ICommand PauseRomCommand { get => _pauseRomCommand; set => SetProperty(ref _pauseRomCommand, value); }
-
-        private void CreatePauseRomCommand()
-        {
-            PauseRomCommand = new RelayCommand(TogglePause);
-        }
-
+        [RelayCommand]
         private void TogglePause()
         {
             Chip8.TogglePause();
             OnPropertyChanged(nameof(PauseRomSymbol));
         }
 
-        private ICommand _openRomCommand;
-
-        public ICommand OpenRomCommand { get => _openRomCommand; set => SetProperty(ref _openRomCommand, value); }
-
-        private void CreateOpenRomCommand()
-        {
-            OpenRomCommand = new RelayCommand(OpenRom);
-        }
-
+        [RelayCommand]
         private void OpenRom()
         {
             var of = new OpenFileDialog();
@@ -75,18 +65,17 @@ namespace GlumChip8.GUI.ViewModels
                 var ext = Path.GetExtension(CurrentRomPath);
                 if (String.Equals(ext, ".ch8", StringComparison.OrdinalIgnoreCase) && File.Exists(CurrentRomPath))
                 {
-                    var raylibHandle = Chip8.LaunchFromFile(CurrentRomPath);
-                    OnPropertyChanged(nameof(PauseRomSymbol));
-                    ShowCollection = false;
-                    RaylibHost = new Chip8RaylibHost(raylibHandle, Chip8);
+                    StartEmulation();
                 }
             }
         }
 
-        public void CreateCommands()
+        public void StartEmulation()
         {
-            CreateOpenRomCommand();
-            CreatePauseRomCommand();
+            var raylibHandle = Chip8.LaunchFromFile(CurrentRomPath);
+            OnPropertyChanged(nameof(PauseRomSymbol));
+            ShowCollection = false;
+            RaylibHost = new Chip8RaylibHost(raylibHandle, Chip8);
         }
 
         public SymbolRegular PauseRomSymbol
@@ -119,6 +108,28 @@ namespace GlumChip8.GUI.ViewModels
         }
 
         // Your existing collection
-        public ObservableCollection<string> RomCollection { get; set; } = new() { };
+        public ObservableCollection<KeyValuePair<string, string>> RomCollection { get; set; } = new() { };
+
+        [RelayCommand]
+        public void Play(KeyValuePair<string, string> selectedRom)
+        {
+            string romPath = selectedRom.Value;
+            CurrentRomPath = romPath;
+            StartEmulation();
+        }
+
+
+        [RelayCommand]
+        public void CloseRom()
+        {
+            Chip8.SetToDefault();
+            ShowCollection = true;
+        }
+
+        [RelayCommand]
+        public void ResetRom()
+        {
+            Chip8.ResetCurrentRom();
+        }
     }
 }
