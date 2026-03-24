@@ -20,6 +20,8 @@ namespace GlumChip8.Core
     new bool[SCREEN_WIDTH, SCREEN_HEIGHT]  // Plane 1
         };
 
+        private bool _isHighRes = false; // Toggle with 00FF / 00FE
+
         public void Clear(int plane = 0)
         {
             for (int x = 0; x < SCREEN_WIDTH; x++)
@@ -102,17 +104,87 @@ namespace GlumChip8.Core
 
         public bool XorPixel(int x, int y, bool pixelOn, int plane = 0)
         {
+            if (!_isHighRes)
+            {
+                // Scale 64x32 coordinates to the 128x64 buffer (2x2 blocks)
+                bool collision = false;
+                for (int i = 0; i < 2; i++)
+                {
+                    for (int j = 0; j < 2; j++)
+                    {
+                        int targetX = ((x % 64) * 2 + i);
+                        int targetY = ((y % 32) * 2 + j);
+
+                        bool oldPixel = _planes[plane][targetX, targetY];
+                        _planes[plane][targetX, targetY] = oldPixel ^ pixelOn;
+                        if (oldPixel && !(_planes[plane][targetX, targetY])) collision = true;
+                    }
+                }
+                return collision;
+            }
+
+            // Standard High-Res Logic
             x %= SCREEN_WIDTH;
             y %= SCREEN_HEIGHT;
-
-            bool oldPixel = _planes[plane][x, y];
-            bool newPixel = oldPixel ^ pixelOn;
-
-            _planes[plane][x, y] = newPixel;
-
-            // Collision if a set pixel was turned off
-            return oldPixel && !newPixel;
+            bool old = _planes[plane][x, y];
+            _planes[plane][x, y] = old ^ pixelOn;
+            return old && !(_planes[plane][x, y]);
         }
 
+        public void ScrollDown(int n)
+        {
+            for (int p = 0; p < _planes.Length; p++)
+            {
+                for (int y = SCREEN_HEIGHT - 1; y >= n; y--)
+                {
+                    for (int x = 0; x < SCREEN_WIDTH; x++)
+                    {
+                        _planes[p][x, y] = _planes[p][x, y - n];
+                    }
+                }
+                // Clear the newly empty rows at the top
+                for (int y = 0; y < n; y++)
+                {
+                    for (int x = 0; x < SCREEN_WIDTH; x++) _planes[p][x, y] = false;
+                }
+            }
+        }
+
+        public void ScrollRight(int n)
+        {
+            for (int p = 0; p < _planes.Length; p++)
+            {
+                for (int y = 0; y < SCREEN_HEIGHT; y++)
+                {
+                    for (int x = SCREEN_WIDTH - 1; x >= n; x--)
+                    {
+                        _planes[p][x, y] = _planes[p][x - n, y];
+                    }
+                    for (int x = 0; x < n; x++) _planes[p][x, y] = false;
+                }
+            }
+        }
+
+        public void ScrollLeft(int n)
+        {
+            for (int p = 0; p < _planes.Length; p++)
+            {
+                for (int y = 0; y < SCREEN_HEIGHT; y++)
+                {
+                    for (int x = 0; x < SCREEN_WIDTH - n; x++)
+                    {
+                        _planes[p][x, y] = _planes[p][x + n, y];
+                    }
+                    for (int x = SCREEN_WIDTH - n; x < SCREEN_WIDTH; x++) _planes[p][x, y] = false;
+                }
+            }
+        }
+
+        public void SetResolution(int width, int height)
+        {
+            _isHighRes = (width == 128);
+            Clear(0);
+            Clear(1);
+        }
     }
 }

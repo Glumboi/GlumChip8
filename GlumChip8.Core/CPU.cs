@@ -1,6 +1,7 @@
 ﻿using Raylib_cs;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Reflection.Metadata.Ecma335;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -149,6 +150,7 @@ namespace GlumChip8.Core
             _programLength = 0;
         }
 
+
         public void ExecuteCurrent()
         {
             for (int i = 0; i < CYCLES; i++)
@@ -164,14 +166,45 @@ namespace GlumChip8.Core
                         {
                             switch (opcode)
                             {
-                                case 0x00E0:
+                                case 0x00E0: // CLS: Clear screen
                                     _display.Clear();
                                     break;
-                                case 0x00EE:
+
+                                case 0x00EE: // RET: Return from subroutine
                                     _PC = Pop();
                                     break;
+
+                                case 0x00FB: // SCR: Scroll right 4 pixels
+                                    _display.ScrollRight(4);
+                                    break;
+
+                                case 0x00FC: // SCL: Scroll left 4 pixels
+                                    _display.ScrollLeft(4);
+                                    break;
+
+                                case 0x00FD: // EXIT: Terminate interpreter
+                                    InitSystemDefault();
+                                    break;
+
+                                case 0x00FE: // LOW: Disable high-res (64x32)
+                                    _display.SetResolution(64, 32);
+                                    break;
+
+                                case 0x00FF: // HIGH: Enable high-res (128x64)
+                                    _display.SetResolution(128, 64);
+                                    break;
+
                                 default:
-                                    Console.WriteLine($"Unknown 0x0 opcode {opcode:X4}");
+                                    // Handle 00CN (Scroll down N pixels)
+                                    if ((opcode & 0x00F0) == 0x00C0)
+                                    {
+                                        byte n = (byte)(opcode & 0x000F);
+                                        _display.ScrollDown(n);
+                                    }
+                                    else
+                                    {
+                                        Debug.WriteLine($"Unknown 0x0 opcode {opcode:X4}");
+                                    }
                                     break;
                             }
                             break;
@@ -280,8 +313,49 @@ namespace GlumChip8.Core
                                         WriteRegister(0xF, (byte)(sum > 255 ? 1 : 0));
                                         break;
                                     }
+                                case 0x0005:
+                                    {
+                                        byte valX = ReadRegister(x);
+                                        byte valY = ReadRegister(y);
+
+                                        // VF is set to 1 if NOT a borrow (X >= Y)
+                                        byte borrowFlag = (byte)(valX >= valY ? 1 : 0);
+
+                                        WriteRegister(x, (byte)(valX - valY));
+                                        WriteRegister(0xF, borrowFlag);
+                                        break;
+                                    }
+                                case 0x0006:
+                                    {
+                                        byte valX = ReadRegister(x);
+                                        // Save the least significant bitinto VF before shifting
+                                        byte lsb = (byte)(valX & 0x01);
+                                        //Perform the right shift
+                                        WriteRegister(x, (byte)(valX >> 1));
+                                        // Update VF with the dropped bit
+                                        WriteRegister(0xF, lsb);
+                                        break;
+                                    }
+                                case 0x0007:
+                                    {
+                                        byte valX = ReadRegister(x);
+                                        byte valY = ReadRegister(y);
+
+                                        // VF is set to 1 if Vy >= Vx (No Borrow)
+                                        byte borrowFlag = (byte)(valY >= valX ? 1 : 0);
+                                        //perform the subtraction: Vy - Vx
+                                        WriteRegister(x, (byte)(valY - valX));
+                                        //Update the flag register
+                                        WriteRegister(0xF, borrowFlag);
+                                        break;
+                                    }
+                                case 0x000E:
+                                    {
+                                        _registers[x] = (byte)(_registers[x] << 1);
+                                        break;
+                                    }
                                 default:
-                                    Console.WriteLine($"Unknown opcode {opcode:X4}");
+                                    Debug.WriteLine($"Unknown opcode {opcode:X4}");
                                     break;
                             }
                             break;
@@ -388,7 +462,7 @@ namespace GlumChip8.Core
                                     }
                                     break;
                                 default:
-                                    Console.WriteLine($"Unknown opcode {opcode:X4}");
+                                    Debug.WriteLine($"Unknown opcode {opcode:X4}");
                                     break;
                             }
                             break;
@@ -410,6 +484,23 @@ namespace GlumChip8.Core
                             byte x = (byte)((opcode & 0x0F00) >> 8);
                             switch (opcode & 0x00FF)
                             {
+                                case 0x0001:
+                                    {
+                                        _dt = ReadRegister(3);
+                                        break;
+                                    }
+                                case 0x0002: // Store 16 bytes at I → audio pattern buffer
+                                    {
+                                        if (_vI + 15 >= RAM.MEMORY_SIZE)
+                                            throw new InvalidOperationException("Attempt to read audio pattern past RAM end.");
+                                        byte[] pattern = new byte[16];
+                                        for (int j = 0; j < 16; i++)
+                                        {
+                                            pattern[j] = (byte)RAM.ReadByte((ushort)(_vI + j));
+                                        }
+                                        _sound.LoadPattern(pattern);
+                                        break;
+                                    }
                                 case 0x0007:
                                     // set Vx = delay timer value
                                     WriteRegister(x, _dt);
@@ -513,7 +604,7 @@ namespace GlumChip8.Core
                                         break;
                                     }
                                 default:
-                                    Console.WriteLine($"Unknown opcode {opcode:X4}");
+                                    Debug.WriteLine($"Unknown opcode {opcode:X4}");
                                     break;
                             }
                             break;
@@ -526,18 +617,18 @@ namespace GlumChip8.Core
                         }
                     case 0xF002:
                         {
-                            byte[] audioPattern = new byte[16];
+                            /*byte[] audioPattern = new byte[16];
                             for (int j = 0; j < 16; j++)
                             {
                                 audioPattern[j] = (byte)RAM.ReadByte((ushort)(_vI + j));
                             }
-                            _sound.LoadPattern(audioPattern);
+                            _sound.LoadPattern(audioPattern);*/
                             break;
                         }
                     default:
                         {
 
-                            System.Console.WriteLine($"Opcode {opcode:X4} not implemented yet! skipping execution.");
+                            Debug.WriteLine($"Opcode {opcode:X4} not implemented yet! skipping execution.");
                             break;
                         }
                 }

@@ -1,6 +1,12 @@
 <Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
   <Project Path="GlumChip8.Console/GlumChip8.Console.csproj" />
   <Project Path="GlumChip8.Core/GlumChip8.Core.csproj" />
   <Project Path="GlumChip8.GUI/GlumChip8.GUI.csproj" Id="25ba139d-0902-4ba5-b922-f89f6657987a" />
   <Project Path="GlumChip8.Tests/GlumChip8.Tests.csproj" />
+  <Project Path="GlumChip8_C.Core/GlumChip8_C.Core.vcxproj" Id="77f3bcd5-7984-4aaa-bf6f-78c5de89eff3" />
 </Solution>
