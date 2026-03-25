@@ -30,6 +30,9 @@
     <ClCompile Include="Chip8Display.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Chip8Keyboard.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="Chip8System.h">

@@ -3,20 +3,37 @@
 #include "Chip8CPU.h"
 #include "Chip8Display.h"
 #include "Chip8RAM.h"
+#include "Chip8Keyboard.h"
+#include <time.h>
 
 EXPORT_FN void Init_Chip8Emulator(void)
 {
+	srand((unsigned int)time(NULL));
+
 	static Chip8CPU cpu;
 	cpu = Chip8CPU_Create();
 
 	static Chip8Display display;
 	display = Chip8Display_Create();
+
 	static Chip8RAM ram;
 	memset(&ram, 0, sizeof(ram));
 	cpu._ram = &ram;
+
 	cpu._activePlanes = 0b01;
+
+	// In your Init function
+	static Chip8Keyboard keyboard = { 0 };
 	Chip8CPU_ResetRegisters(&cpu);
-	Chip8System_Init(&cpu, &display, &ram);
+	Chip8System_Init(&cpu, &display, &ram, &keyboard);
+}
+
+EXPORT_FN void Chip8Keyboard_UpdateKeys(unsigned char keys[16], int lastPressed)
+{
+	for (int i = 0; i < 16; i++)
+		g_chip8SystemInstance._keyboard->_keys[i] = keys[i];
+
+	g_chip8SystemInstance._keyboard->_lastPressed = lastPressed;
 }
 
 EXPORT_FN void Chip8_Reset_Rom(void)

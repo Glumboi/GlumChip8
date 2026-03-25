@@ -10,10 +10,13 @@
 #include "Chip8System.h"
 #include "Chip8RAM.h"
 #include "Chip8Display.h"
+#include "Chip8Keyboard.h"
 
 typedef struct _chip8CPU
 {
-	Word _registers[CHIP8_REG_CNT + 1]; // +1 for the 16th reg
+	Word _registers[CHIP8_REG_CNT];
+	Word _flagRegisters[CHIP8_REG_CNT];
+
 	DoubleWord _vI, _PC;
 	size_t _programLen;
 

@@ -20,9 +20,10 @@ typedef struct
 	Chip8Display* _display;
 	Chip8RAM* _ram;
 	Chip8CPU* _cpu;
+	Chip8Keyboard* _keyboard;
 } Chip8System;
 
 extern Chip8System g_chip8SystemInstance;
-bool Chip8System_Init(Chip8CPU* cpu, Chip8Display* display, Chip8RAM* ram);
+bool Chip8System_Init(Chip8CPU* cpu, Chip8Display* display, Chip8RAM* ram, Chip8Keyboard* keyboard);
 
 #endif	

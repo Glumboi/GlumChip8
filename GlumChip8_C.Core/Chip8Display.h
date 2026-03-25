@@ -7,7 +7,8 @@ typedef enum
 {
 	Down = 0,
 	Left,
-	Right
+	Right,
+	Up
 } Chip8Display_Scrolling_Direction;
 
 typedef struct _chip8Display

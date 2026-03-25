@@ -8,6 +8,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 
@@ -73,6 +74,32 @@ namespace GlumChip8.GUI.Core
             }
         }
 
+        protected override void OnMouseEnter(System.Windows.Input.MouseEventArgs e)
+        {
+            base.OnMouseEnter(e);
+            this.Focus(); // Force keyboard focus to the Raylib host
+        }
+
+        protected override void OnPreviewKeyDown(System.Windows.Input.KeyEventArgs e)
+        {
+            if (Chip8System.Keyboard.TryMapKey(e.Key, out byte chipKey))
+            {
+                Chip8System.Keyboard._keys[chipKey] = 1; // 1 = Pressed
+                Chip8System.Keyboard.LastPressed = chipKey;
+                e.Handled = true;
+            }
+        }
+
+        protected override void OnPreviewKeyUp(System.Windows.Input.KeyEventArgs e)
+        {
+            if (Chip8System.Keyboard.TryMapKey(e.Key, out byte chipKey))
+            {
+                Chip8System.Keyboard._keys[chipKey] = 0; // FIX: 0 = Released
+                                                         // Optional: if (Chip8System.Keyboard.LastPressed == chipKey) Chip8System.Keyboard.LastPressed = -1;
+                e.Handled = true;
+            }
+        }
+
         private void OnRender(object sender, EventArgs e)
         {
             if (_windowResizing || _raylibHandle == IntPtr.Zero || !Chip8System.Running) return;
@@ -80,10 +107,7 @@ namespace GlumChip8.GUI.Core
             // Raylib drawing must happen here to sync with WPF
             if (!Raylib.WindowShouldClose())
             {
-                if (Raylib.IsCursorOnScreen())
-                {
-                    SetFocus(_raylibHandle);
-                }
+
                 Raylib.BeginDrawing();
                 Raylib.ClearBackground(Raylib_cs.Color.Black);
                 _chip8System.Update(); // This handles CPU cycle + Raylib Draw calls
@@ -120,12 +144,43 @@ namespace GlumChip8.GUI.Core
             return new HandleRef(this, _raylibHandle);
         }
 
+        protected override void OnLostFocus(RoutedEventArgs e)
+        {
+            base.OnLostFocus(e);
+            // Clear all keys so they don't get "stuck" down
+            Array.Clear(Chip8System.Keyboard._keys, 0, 16);
+            Chip8System.Keyboard.LastPressed = -1;
+
+            GlumChip8.Core.Chip8Native.Chip8Keyboard_UpdateKeys(
+                Chip8System.Keyboard._keys, -1
+            );
+        }
+
         private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
         {
+            const int WM_KEYDOWN = 0x0100;
+            const int WM_KEYUP = 0x0101;
+
+            if (msg == WM_KEYDOWN || msg == WM_KEYUP)
+            {
+                // Convert the Win32 virtual key to a WPF Key
+                Key wpfKey = KeyInterop.KeyFromVirtualKey((int)wParam);
+
+                if (Chip8System.Keyboard.TryMapKey(wpfKey, out byte chipKey))
+                {
+                    Chip8System.Keyboard._keys[chipKey] = (msg == WM_KEYDOWN) ? (byte)1 : (byte)0;
+                    if (msg == WM_KEYDOWN) Chip8System.Keyboard.LastPressed = chipKey;
+
+                    handled = true; // Tell Windows we handled the key
+                    return IntPtr.Zero;
+                }
+            }
+
             if (msg == WM_ENTERSIZEMOVE)
                 _windowResizing = true;
             else if (msg == WM_EXITSIZEMOVE)
                 _windowResizing = false;
+
             return IntPtr.Zero;
         }
 

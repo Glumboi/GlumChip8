@@ -32,4 +32,5 @@ typedef uint16_t DoubleWord;
 
 #define CHIP8_DISPLAY_COLOR WHITE
 
+#define CHIP8_KEYBOARD_KEY_CNT 16
 #endif

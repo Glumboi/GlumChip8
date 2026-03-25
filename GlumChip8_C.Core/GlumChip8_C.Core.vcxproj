@@ -153,6 +153,7 @@
   <ItemGroup>
     <ClCompile Include="Chip8CPU.c" />
     <ClCompile Include="Chip8Display.c" />
+    <ClCompile Include="Chip8Keyboard.c" />
     <ClCompile Include="Chip8RAM.c" />
     <ClCompile Include="Chip8System.c" />
     <ClCompile Include="dllmain.c" />

@@ -87,7 +87,7 @@ void Chip8Display_Render(Chip8Display* display, Word activePlanes)
 		{
 			for (int x = 0; x < CHIP8_SCREEN_WIDTH; x++)
 			{
-				if (display->_planes[p][x, y])
+				if (display->_planes[p][y * CHIP8_SCREEN_WIDTH + x]) 
 				{
 					DrawRectangleV((Vector2) { x* scaleX, y* scaleY },
 						(Vector2)
@@ -105,112 +105,87 @@ bool Chip8Display_XorPixel(Chip8Display* display, int x, int y, bool pixelOn, in
 {
 	if (!display || plane < 0 || plane > 1) return false;
 
-	x %= CHIP8_SCREEN_WIDTH;
-	y %= CHIP8_SCREEN_HEIGHT;
+	// 1. Determine actual logical bounds based on current resolution
+	int targetWidth = display->_isHighRes ? 128 : 64;
+	int targetHeight = display->_isHighRes ? 64 : 32;
 
+	// 2. Wrap the starting coordinates
+	x %= targetWidth;
+	y %= targetHeight;
+
+	// Ensure positive results for wrapping
+	if (x < 0) x += targetWidth;
+	if (y < 0) y += targetHeight;
+
+	bool collision = false;
 	Word* planeData = display->_planes[plane];
-	int idx = y * CHIP8_SCREEN_WIDTH + x;
 
-	bool old = planeData[idx] != 0;
-	planeData[idx] ^= pixelOn ? 1 : 0;
-	return old && !planeData[idx];
+	if (!display->_isHighRes)
+	{
+		// Low-res 64x32 mode: We scale 1 pixel into a 2x2 block 
+		// in our 128x64 internal buffer to keep memory consistent.
+		for (int i = 0; i < 2; i++)
+		{
+			for (int j = 0; j < 2; j++)
+			{
+				int tx = (x * 2) + i;
+				int ty = (y * 2) + j;
+
+				int idx = ty * 128 + tx;
+				bool oldPixel = planeData[idx] != 0;
+				planeData[idx] ^= (pixelOn ? 1 : 0);
+
+				// If any of the 4 sub-pixels were turned off, it's a collision
+				if (oldPixel && !planeData[idx]) collision = true;
+			}
+		}
+	}
+	else
+	{
+		// High-res 128x64 mode: Direct mapping
+		int idx = y * 128 + x;
+		bool oldPixel = planeData[idx] != 0;
+		planeData[idx] ^= (pixelOn ? 1 : 0);
+		collision = (oldPixel && !planeData[idx]);
+	}
+
+	return collision;
 }
 
 void Chip8Display_Scroll(Chip8Display* display, int n, Chip8Display_Scrolling_Direction direction)
 {
-	if (n <= 0) return;
+	if (n <= 0 || !display) return;
 
-	switch (direction)
-	{
-	case Down:
-	{
-		if (n >= CHIP8_SCREEN_HEIGHT)
-		{
-			// clearing all rows
-			for (int p = 0; p < CHIP8_DISPLAY_GET_NUMBER_OF_PLANES(display); p++)
-				for (int y = 0; y < CHIP8_SCREEN_HEIGHT; y++)
-					for (int x = 0; x < CHIP8_SCREEN_WIDTH; x++)
-						display->_planes[p][x, y] = false;
-			break;
-		}
+	int width = 128; // Always use the full width for internal buffer math
+	int height = 64;
 
-		for (int p = 0; p < CHIP8_DISPLAY_GET_NUMBER_OF_PLANES(display); p++)
+	for (int p = 0; p < 2; p++)
+	{
+		Word* plane = display->_planes[p];
+
+		if (direction == Down)
 		{
-			for (int y = CHIP8_SCREEN_HEIGHT - 1; y >= n; y--)
+			for (int y = height - 1; y >= n; y--)
 			{
-				for (int x = 0; x < CHIP8_SCREEN_WIDTH; x++)
-				{
-					display->_planes[p][x, y] = display->_planes[p][x, y - n];
-				}
+				memcpy(&plane[y * width], &plane[(y - n) * width], width);
 			}
-			// Clear the newly empty rows at the top
-			for (int y = 0; y < n; y++)
+			memset(plane, 0, n * width);
+		}
+		else if (direction == Right)
+		{
+			for (int y = 0; y < height; y++)
 			{
-				for (int x = 0; x < CHIP8_SCREEN_WIDTH; x++) display->_planes[p][x, y] = false;
+				memmove(&plane[y * width + n], &plane[y * width], width - n);
+				memset(&plane[y * width], 0, n);
 			}
 		}
-		break;
-	}
-	case Right:
-	{
-		if (n >= CHIP8_SCREEN_WIDTH)
+		else if (direction == Left)
 		{
-			// clearing all columns
-			for (int p = 0; p < CHIP8_DISPLAY_GET_NUMBER_OF_PLANES(display); p++)
-				for (int y = 0; y < CHIP8_SCREEN_HEIGHT; y++)
-					for (int x = 0; x < CHIP8_SCREEN_WIDTH; x++)
-						display->_planes[p][x, y] = false;
-			break;
-		}
-
-		for (int p = 0; p < CHIP8_DISPLAY_GET_NUMBER_OF_PLANES(display); p++)
-		{
-			for (int y = 0; y < CHIP8_SCREEN_HEIGHT; y++)
+			for (int y = 0; y < height; y++)
 			{
-				// start from the last valid index
-				for (int x = CHIP8_SCREEN_WIDTH - 1; x >= n; x--)
-				{
-					display->_planes[p][x, y] = display->_planes[p][x - n, y];
-				}
-				for (int x = 0; x < n; x++) display->_planes[p][x, y] = false;
+				memmove(&plane[y * width], &plane[y * width + n], width - n);
+				memset(&plane[y * width + (width - n)], 0, n);
 			}
-
 		}
-		break;
-	}
-	case Left:
-	{
-		if (n >= CHIP8_SCREEN_WIDTH)
-		{
-			// clearing all columns
-			for (int p = 0; p < CHIP8_DISPLAY_GET_NUMBER_OF_PLANES(display); p++)
-				for (int y = 0; y < CHIP8_SCREEN_HEIGHT; y++)
-					for (int x = 0; x < CHIP8_SCREEN_WIDTH; x++)
-						display->_planes[p][x, y] = false;
-			break;
-		}
-
-		for (int p = 0; p < CHIP8_DISPLAY_GET_NUMBER_OF_PLANES(display); p++)
-		{
-			for (int y = 0; y < CHIP8_SCREEN_HEIGHT; y++)
-			{
-				for (int x = 0; x < CHIP8_SCREEN_WIDTH - n; x++)
-				{
-					// move pixel from the right (x + n) into current x
-					display->_planes[p][x, y] = display->_planes[p][x + n, y];
-				}
-				for (int x = CHIP8_SCREEN_WIDTH - n; x < CHIP8_SCREEN_WIDTH; x++)
-				{
-					display->_planes[p][x, y] = false;
-				}
-			}
-
-		}
-		break;
-	}
-	default:
-	{
-		break;
-	}
 	}
 }

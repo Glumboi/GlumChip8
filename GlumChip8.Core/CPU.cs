@@ -447,7 +447,7 @@ namespace GlumChip8.Core
                             {
                                 case 0x009E:
                                     // skip next instruction if key with the value of Vx is pressed
-                                    if (_keyboard.IsKeyPressed(ReadRegister(x)))
+                                    //if (_keyboard.IsKeyPressed(ReadRegister(x)))
                                     {
                                         _PC += 2;
                                         break;
@@ -455,7 +455,7 @@ namespace GlumChip8.Core
                                     break;
                                 case 0x00A1:
                                     // skip next instruction if key with the value of Vx is not pressed
-                                    if (!_keyboard.IsKeyPressed(ReadRegister(x)))
+                                    //if (!_keyboard.IsKeyPressed(ReadRegister(x)))
                                     {
                                         _PC += 2;
                                         break;
@@ -509,7 +509,7 @@ namespace GlumChip8.Core
                                     bool keyPressed = false;
                                     for (int key = 0; key < 16; key++)
                                     {
-                                        if (_keyboard.IsKeyPressed(key))
+                                        //if (_keyboard.IsKeyPressed(key))
                                         {
                                             WriteRegister(x, (byte)key);
                                             keyPressed = true;

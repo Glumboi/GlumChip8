@@ -1,16 +1,18 @@
 #include "Chip8CPU.h"
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 
 Chip8CPU Chip8CPU_Create()
 {
 	Chip8CPU ret = { 0 };
 	ret._activePlanes = CHIP8_DEFAULT_ACTIVE_PLANES;
-
 	return ret;
 }
 
 void Chip8CPU_Push(Chip8CPU* cpu, DoubleWord val)
 {
-	if (cpu->_SP >= 16)
+	if (cpu->_SP >= CHIP8_STACK_CNT)
 	{
 		fprintf(stderr, "Stack overflowed!\n");
 		return;
@@ -35,7 +37,6 @@ void Chip8CPU_WriteRegister(Chip8CPU* cpu, Word targetReg, Word val)
 		fprintf(stderr, "Target Register out of range!\n");
 		return;
 	}
-
 	cpu->_registers[targetReg] = val;
 }
 
@@ -46,7 +47,6 @@ Word Chip8CPU_ReadRegister(Chip8CPU* cpu, Word targetReg)
 		fprintf(stderr, "Target Register out of range!\n");
 		return 0xFF;
 	}
-
 	return cpu->_registers[targetReg];
 }
 
@@ -59,7 +59,8 @@ void Chip8CPU_LoadProgram(Chip8CPU* cpu, Word* program, size_t programSz)
 
 DoubleWord Chip8CPU_Step(Chip8CPU* cpu)
 {
-	DoubleWord ret = (Chip8RAM_ReadByte(cpu->_ram, cpu->_PC) << 8) | Chip8RAM_ReadByte(cpu->_ram, cpu->_PC + 1);
+	DoubleWord ret = (Chip8RAM_ReadByte(cpu->_ram, cpu->_PC) << 8) |
+		Chip8RAM_ReadByte(cpu->_ram, cpu->_PC + 1);
 	cpu->_PC += 2;
 	return ret;
 }
@@ -83,310 +84,303 @@ void Chip8CPU_ResetCurrentRom(Chip8CPU* cpu)
 {
 	Chip8CPU_ResetRegisters(cpu);
 	Chip8Display_Clear(g_chip8SystemInstance._display, 0);
-	//_keyboard = new();
 }
 
 void Chip8CPU_ExecuteCurrent(Chip8CPU* cpu)
 {
-	for (size_t i = 0; i < CHIP8_CYCLES; i++)
+	if (cpu->_DT > 0) cpu->_DT--;
+	if (cpu->_ST > 0) cpu->_ST--;
+	for (size_t cycle = 0; cycle < CHIP8_CYCLES; cycle++)
 	{
+		if (!cpu->_running) break;
 		if (cpu->_PC >= CHIP8_PROGRAM_START + cpu->_programLen) break;
 
 		DoubleWord opcode = Chip8CPU_Step(cpu);
 		fprintf(stdout, "Executing opcode %04X\n", opcode);
+
 		switch (opcode & 0xF000)
 		{
-		case 0x1000: Chip8CPU_Jump(cpu, opcode); break;
 		case 0x0000:
-		{
 			switch (opcode)
 			{
-			case 0x00E0: // CLS: Clear screen
-				Chip8Display_Clear(g_chip8SystemInstance._display, 0);
+			case 0x00E0: // CLS
+				for (int p = 0; p < 2; p++)
+				{
+					if ((cpu->_activePlanes & (1 << p)) != 0)
+					{
+						Chip8Display_Clear(g_chip8SystemInstance._display, p);
+					}
+				}
 				break;
-
-			case 0x00EE: // RET: Return from subroutine
+			case 0x00EE: // RET
 				cpu->_PC = Chip8CPU_Pop(cpu);
 				break;
-
-			case 0x00FB: // SCR: Scroll right 4 pixels
-				Chip8Display_Scroll(g_chip8SystemInstance._display, 4, 2);
+			case 0x00FB: // SCR (scroll right 4)
+				Chip8Display_Scroll(g_chip8SystemInstance._display, 4, Right);
 				break;
-
-			case 0x00FC: // SCL: Scroll left 4 pixels
-				Chip8Display_Scroll(g_chip8SystemInstance._display, 4, 1);
+			case 0x00FC: // SCL (scroll left 4)
+				Chip8Display_Scroll(g_chip8SystemInstance._display, 4, Left);
 				break;
-
-			case 0x00FD: // EXIT: Terminate interpreter
-				//InitSystemDefault();
+			case 0x00FD: // EXIT
+				Chip8CPU_ResetRegisters(cpu);
 				break;
-
-			case 0x00FE: // LOW: Disable high-res (64x32)
+			case 0x00FE: // LOW
 				Chip8Display_SetResolution(g_chip8SystemInstance._display, 64, 32);
 				break;
-			case 0x00FF: // HIGH: Enable high-res (128x64)
+			case 0x00FF: // HIGH
 				Chip8Display_SetResolution(g_chip8SystemInstance._display, 128, 64);
 				break;
 			default:
-				// Handle 00CN (Scroll down N pixels)
 				if ((opcode & 0x00F0) == 0x00C0)
 				{
-					Word n = opcode & 0x000F;
-					Chip8Display_Scroll(g_chip8SystemInstance._display, n, 0);
+					// Scroll down N pixels
+					Chip8Display_Scroll(g_chip8SystemInstance._display, opcode & 0x000F, Down);
 				}
 				else
 				{
-					fprintf(stderr, "Unknown 0x0 opcode {opcode:%04x}", opcode);
+					fprintf(stderr, "Unknown 0x0 opcode %04X\n", opcode);
 				}
 				break;
 			}
 			break;
-		}
-		case 0x2000: // call subroutine
-		{
-			Chip8CPU_Push(cpu, cpu->_PC);
-			Chip8CPU_Jump(cpu, opcode);
-			break;
-		}
+
+		case 0x1000: Chip8CPU_Jump(cpu, opcode); break;
+		case 0x2000: Chip8CPU_Push(cpu, cpu->_PC); Chip8CPU_Jump(cpu, opcode); break;
 		case 0x3000:
 		{
-			Word x = ((opcode & 0x0F00) >> 8);
-			Word n = Chip8CPU_ReadRegister(cpu, x);
-			if (n == (opcode & 0x00FF))
-			{
-				cpu->_PC += 2; // skip next instruction
-			}
+			Word x = (opcode & 0x0F00) >> 8;
+			if (Chip8CPU_ReadRegister(cpu, x) == (opcode & 0x00FF))
+				cpu->_PC += 2;
 			break;
 		}
 		case 0x4000:
 		{
-			Word x = ((opcode & 0x0F00) >> 8);
-			Word n = Chip8CPU_ReadRegister(cpu, x);
-			if (n != (opcode & 0x00FF))
-			{
+			Word x = (opcode & 0x0F00) >> 8;
+			if (Chip8CPU_ReadRegister(cpu, x) != (opcode & 0x00FF))
 				cpu->_PC += 2;
-			}
 			break;
 		}
 		case 0x5000:
 		{
-			Word x = ((opcode & 0x0F00) >> 8);
-			Word y = ((opcode & 0x00F0) >> 4);
-			if ((opcode & 0x000F) == 0x0000)
-			{
-				if (Chip8CPU_ReadRegister(cpu, x) == Chip8CPU_ReadRegister(cpu, y))
-				{
-					cpu->_PC += 2;
-				}
-			}
-			else if ((opcode & 0x000F) == 0x0002)
-			{
-				if (x <= y)
-				{
-					for (int j = x; j <= y; j++)
-					{
-						Chip8RAM_WriteByte(cpu->_ram, cpu->_vI + (j - x), cpu->_registers[j]);
-					}
-				}
-				else
-				{
-					for (int j = x; j >= y; j--)
-					{
-						Chip8RAM_WriteByte(cpu->_ram, cpu->_vI + (x - j), cpu->_registers[j]);
-					}
-				}
-			}
-			else if ((opcode & 0x000F) == 0x0003)
-			{
-				if (x <= y)
-				{
-					for (int j = x; j <= y; j++)
-					{
-						cpu->_registers[j] = Chip8RAM_ReadByte(cpu->_ram, (cpu->_vI + (j - x)));
-					}
-				}
-				else
-				{
-					for (int j = x; j >= y; j--)
-					{
-						cpu->_registers[j] = Chip8RAM_ReadByte(cpu->_ram, (cpu->_vI + (x - j)));
-					}
-				}
-			}
+			Word x = (opcode & 0x0F00) >> 8;
+			Word y = (opcode & 0x00F0) >> 4;
+			if ((opcode & 0x000F) == 0x0 && Chip8CPU_ReadRegister(cpu, x) == Chip8CPU_ReadRegister(cpu, y))
+				cpu->_PC += 2;
 			break;
 		}
 		case 0x6000:
 		{
-			Word x = ((opcode & 0x0F00) >> 8);
-			Word nn = (opcode & 0x00FF);
-			Chip8CPU_WriteRegister(cpu, x, nn);
+			Word x = (opcode & 0x0F00) >> 8;
+			Chip8CPU_WriteRegister(cpu, x, opcode & 0x00FF);
 			break;
 		}
 		case 0x7000:
 		{
-			Word x = ((opcode & 0x0F00) >> 8);
-			Word nn = (opcode & 0x00FF);
-			Chip8CPU_WriteRegister(cpu, x, (Chip8CPU_ReadRegister(cpu, x) + nn));
+			Word x = (opcode & 0x0F00) >> 8;
+			Chip8CPU_WriteRegister(cpu, x,
+				(Chip8CPU_ReadRegister(cpu, x) + (opcode & 0x00FF)) & 0xFF);
 			break;
 		}
-
 		case 0x8000:
 		{
-			Word x = ((opcode & 0x0F00) >> 8);
-			Word y = ((opcode & 0x00F0) >> 4);
+			Word x = (opcode & 0x0F00) >> 8;
+			Word y = (opcode & 0x00F0) >> 4;
 			switch (opcode & 0x000F)
 			{
-			case 0x0000: Chip8CPU_WriteRegister(cpu, x, Chip8CPU_ReadRegister(cpu, y)); break;
-			case 0x0001: Chip8CPU_WriteRegister(cpu, x, (Chip8CPU_ReadRegister(cpu, x) | Chip8CPU_ReadRegister(cpu, y))); break;
-			case 0x0002: Chip8CPU_WriteRegister(cpu, x, (Chip8CPU_ReadRegister(cpu, x) & Chip8CPU_ReadRegister(cpu, y))); break;
-			case 0x0003: Chip8CPU_WriteRegister(cpu, x, (Chip8CPU_ReadRegister(cpu, x) ^ Chip8CPU_ReadRegister(cpu, y))); break;
-			case 0x0004:
+			case 0x0: Chip8CPU_WriteRegister(cpu, x, Chip8CPU_ReadRegister(cpu, y)); break;
+			case 0x1: Chip8CPU_WriteRegister(cpu, x,
+				Chip8CPU_ReadRegister(cpu, x) | Chip8CPU_ReadRegister(cpu, y)); break;
+			case 0x2: Chip8CPU_WriteRegister(cpu, x,
+				Chip8CPU_ReadRegister(cpu, x) & Chip8CPU_ReadRegister(cpu, y)); break;
+			case 0x3: Chip8CPU_WriteRegister(cpu, x,
+				Chip8CPU_ReadRegister(cpu, x) ^ Chip8CPU_ReadRegister(cpu, y)); break;
+			case 0x4:
 			{
 				int sum = Chip8CPU_ReadRegister(cpu, x) + Chip8CPU_ReadRegister(cpu, y);
-				Chip8CPU_WriteRegister(cpu, x, (sum & 0xFF));
-				Chip8CPU_WriteRegister(cpu, 0xF, (sum > 255 ? 1 : 0));
+				Chip8CPU_WriteRegister(cpu, x, sum & 0xFF);
+				Chip8CPU_WriteRegister(cpu, 0xF, sum > 0xFF ? 1 : 0);
 				break;
 			}
-			case 0x0005:
+			case 0x5:
 			{
-				Word valX = Chip8CPU_ReadRegister(cpu, x);
-				Word valY = Chip8CPU_ReadRegister(cpu, y);
-
-				// VF is set to 1 if NOT a borrow (X >= Y)
-				Word borrowFlag = (valX >= valY ? 1 : 0);
-
-				Chip8CPU_WriteRegister(cpu, x, (valX - valY));
-				Chip8CPU_WriteRegister(cpu, 0xF, borrowFlag);
+				Word vx = Chip8CPU_ReadRegister(cpu, x);
+				Word vy = Chip8CPU_ReadRegister(cpu, y);
+				Chip8CPU_WriteRegister(cpu, x, (vx - vy) & 0xFF);
+				Chip8CPU_WriteRegister(cpu, 0xF, vx >= vy ? 1 : 0);
 				break;
 			}
-			case 0x0006:
+			case 0x6: // Shift Right
 			{
-				Word valX = Chip8CPU_ReadRegister(cpu, x);
-				// Save the least significant bitinto VF before shifting
-				Word lsb = (valX & 0x01);
-				//Perform the right shift
-				Chip8CPU_WriteRegister(cpu, x, valX >> 1);
-				// Update VF with the dropped bit
-				Chip8CPU_WriteRegister(cpu, 0xF, lsb);
+				Word vx = Chip8CPU_ReadRegister(cpu, x);
+				Chip8CPU_WriteRegister(cpu, 0xF, vx & 0x01);
+				Chip8CPU_WriteRegister(cpu, x, vx >> 1);
 				break;
 			}
-			case 0x0007:
+			case 0x7:
 			{
-				Word valX = Chip8CPU_ReadRegister(cpu, x);
-				Word valY = Chip8CPU_ReadRegister(cpu, y);
-
-				// VF is set to 1 if Vy >= Vx (No Borrow)
-				Word borrowFlag = (valY >= valX ? 1 : 0);
-				//perform the subtraction: Vy - Vx
-				Chip8CPU_WriteRegister(cpu, x, (valY - valX));
-				//Update the flag register
-				Chip8CPU_WriteRegister(cpu, 0xF, borrowFlag);
+				Word vx = Chip8CPU_ReadRegister(cpu, x);
+				Word vy = Chip8CPU_ReadRegister(cpu, y);
+				Chip8CPU_WriteRegister(cpu, x, (vy - vx) & 0xFF);
+				Chip8CPU_WriteRegister(cpu, 0xF, vy >= vx ? 1 : 0);
 				break;
 			}
-			case 0x000E:
+			case 0xE: // Shift Left
 			{
-				cpu->_registers[x] = (cpu->_registers[x] << 1);
+				Word vx = Chip8CPU_ReadRegister(cpu, x);
+				Chip8CPU_WriteRegister(cpu, 0xF, (vx & 0x80) >> 7);
+				Chip8CPU_WriteRegister(cpu, x, (vx << 1) & 0xFF);
 				break;
 			}
 			default:
-				fprintf(stderr, "Unknown 0x0 opcode {opcode:%04x}", opcode);
+				fprintf(stderr, "Unknown 0x8 opcode %04X\n", opcode);
 				break;
 			}
 			break;
+		}
 		case 0x9000:
 		{
-			Word x = ((opcode & 0x0F00) >> 8);
-			Word y = ((opcode & 0x00F0) >> 4);
-			if ((opcode & 0x000F) == 0x0000)
-			{
-				if (Chip8CPU_ReadRegister(cpu, x) != Chip8CPU_ReadRegister(cpu, y))
-				{
-					cpu->_PC += 2;
-				}
-			}
+			Word x = (opcode & 0x0F00) >> 8;
+			Word y = (opcode & 0x00F0) >> 4;
+			if ((opcode & 0x000F) == 0 && Chip8CPU_ReadRegister(cpu, x) != Chip8CPU_ReadRegister(cpu, y))
+				cpu->_PC += 2;
 			break;
 		}
-		case 0xA000:
-		{
-			cpu->_vI = (opcode & 0x0FFF);
-			break;
-		}
-		case 0xB000:
-		{
-			Chip8CPU_Jump(cpu, ((opcode & 0x0FFF) + Chip8CPU_ReadRegister(cpu, 0)));
-			break;
-		}
+		case 0xA000: cpu->_vI = opcode & 0x0FFF; break;
+		case 0xB000: cpu->_PC = (opcode & 0x0FFF) + Chip8CPU_ReadRegister(cpu, 0); break;
 		case 0xC000:
 		{
-			Word x = ((opcode & 0x0F00) >> 8);
-			Word nn = (opcode & 0x00FF);
-			// TODO: implement random
-			Word randomByte = 0; //_rng.Next(0, 256);
-			Chip8CPU_WriteRegister(cpu, x, (randomByte & nn));
+			Word x = (opcode & 0x0F00) >> 8;
+			Word nn = opcode & 0x00FF;
+			Word rnd = rand() % 256;
+			Chip8CPU_WriteRegister(cpu, x, rnd & nn);
 			break;
 		}
 		case 0xD000:
 		{
-			Word x = Chip8CPU_ReadRegister(cpu, (opcode & 0x0F00) >> 8);
-			Word y = Chip8CPU_ReadRegister(cpu, (opcode & 0x00F0) >> 4);
-			Word height = opcode & 0x000F;
-			if (height == 0) height = 16;
-
-			// Allocate sprite safely
-			Word* spriteData = malloc(sizeof(Word) * height);
-			if (!spriteData)
-				break;
-
-			// Load sprite bytes from memory
-			for (int i = 0; i < height; i++)
-				spriteData[i] = Chip8RAM_ReadByte(cpu->_ram, cpu->_vI + i);
+			// Extract x and y registers
+			Word vx = Chip8CPU_ReadRegister(cpu, (opcode & 0x0F00) >> 8);
+			Word vy = Chip8CPU_ReadRegister(cpu, (opcode & 0x00F0) >> 4);
+			Word n = opcode & 0x000F;
 
 			bool collision = false;
-			// Draw on all active planes
-			for (int plane = 0; plane < 2; plane++)
+
+			if (n == 0)
 			{
-				if ((cpu->_activePlanes & (1 << plane)) != 0)
-					collision |= Chip8Display_DrawSprite(g_chip8SystemInstance._display, x, y, spriteData, height, plane);
+				// DXY0 -> 16x16 XO-CHIP sprite (32 bytes)
+				Word sprite16[32];
+				for (int j = 0; j < 32; j++)
+				{
+					sprite16[j] = Chip8RAM_ReadByte(cpu->_ram, cpu->_vI + j);
+				}
+
+				// DRAW TO ALL ACTIVE PLANES
+				for (int p = 0; p < 2; p++)
+				{
+					if ((cpu->_activePlanes & (1 << p)) != 0)
+					{
+						collision |= Chip8Display_DrawSprite16(g_chip8SystemInstance._display, vx, vy, sprite16, 32, p);
+					}
+				}
+			}
+			else
+			{
+				// Classic 8xN sprite
+				Word sprite8[16]; // Max height is 15 for 8xN
+				for (int j = 0; j < n; j++)
+				{
+					sprite8[j] = Chip8RAM_ReadByte(cpu->_ram, cpu->_vI + j);
+				}
+
+				for (int p = 0; p < 2; p++)
+				{
+					if ((cpu->_activePlanes & (1 << p)) != 0)
+					{
+						collision |= Chip8Display_DrawSprite(g_chip8SystemInstance._display, vx, vy, sprite8, n, p);
+					}
+				}
 			}
 
+			// Set VF for collision
 			cpu->_registers[0xF] = collision ? 1 : 0;
 
-			free(spriteData);
-
-			Chip8Display_Render(g_chip8SystemInstance._display, cpu->_activePlanes);
 			break;
 		}
 		case 0xE000:
 		{
-			Word x = ((opcode & 0x0F00) >> 8);
+			Word x = (opcode & 0x0F00) >> 8;
+			Word key = Chip8CPU_ReadRegister(cpu, x);
+			if (key >= 16) break;
 			switch (opcode & 0x00FF)
 			{
-			case 0x009E:
-				// skip next instruction if key with the value of Vx is pressed
-				//if (cpu->_keyboard.IsKeyPressed(ReadRegister(x)))
-			{
-				cpu->_PC += 2;
+			case 0x9E:
+				if (g_chip8SystemInstance._keyboard->_keys[key])
+					cpu->_PC += 2;
+				break;
+			case 0xA1:
+				if (!g_chip8SystemInstance._keyboard->_keys[key])
+					cpu->_PC += 2;
 				break;
 			}
 			break;
-			case 0x00A1:
-				// skip next instruction if key with the value of Vx is not pressed
-				//if (!cpu->_keyboard.IsKeyPressed(ReadRegister(x)))
+		}
+		case 0xF000:
+		{
+			Word x = (opcode & 0x0F00) >> 8;
+			switch (opcode & 0x00FF)
 			{
-				cpu->_PC += 2;
+			case 0x07: Chip8CPU_WriteRegister(cpu, x, cpu->_DT); break;
+			case 0x0A:
+			{
+				if (g_chip8SystemInstance._keyboard->_lastPressed == -1)
+					cpu->_PC -= 2; // repeat instruction
+				else
+				{
+					Chip8CPU_WriteRegister(cpu, x, g_chip8SystemInstance._keyboard->_lastPressed);
+					g_chip8SystemInstance._keyboard->_lastPressed = -1;
+				}
 				break;
 			}
-			break;
+			case 0x15: cpu->_DT = Chip8CPU_ReadRegister(cpu, x); break;
+			case 0x18: cpu->_ST = Chip8CPU_ReadRegister(cpu, x); break;
+			case 0x1E: cpu->_vI += Chip8CPU_ReadRegister(cpu, x); break;
+			case 0x29: cpu->_vI = 0x50 + (Chip8CPU_ReadRegister(cpu, x) * 5); break;
+			case 0x33:
+				Chip8RAM_WriteByte(cpu->_ram, cpu->_vI, Chip8CPU_ReadRegister(cpu, x) / 100);
+				Chip8RAM_WriteByte(cpu->_ram, cpu->_vI + 1, (Chip8CPU_ReadRegister(cpu, x) / 10) % 10);
+				Chip8RAM_WriteByte(cpu->_ram, cpu->_vI + 2, Chip8CPU_ReadRegister(cpu, x) % 10);
+				break;
+			case 0x55:
+				for (int j = 0; j <= x; j++)
+					Chip8RAM_WriteByte(cpu->_ram, cpu->_vI + j, Chip8CPU_ReadRegister(cpu, j));
+				break;
+			case 0x65:
+				for (int j = 0; j <= x; j++)
+					Chip8CPU_WriteRegister(cpu, j, Chip8RAM_ReadByte(cpu->_ram, cpu->_vI + j));
+				break;
+			case 0x75:
+				for (int j = 0; j <= x; j++)
+					cpu->_flagRegisters[j] = cpu->_registers[j];
+				break;
+			case 0x85:
+				for (int j = 0; j <= x; j++)
+					cpu->_registers[j] = cpu->_flagRegisters[j];
+				break;
+			case 0xF1: // active planes
+				cpu->_activePlanes = Chip8CPU_ReadRegister(cpu, x) & 0x03;
+				break;
+			case 0xF2: // load audio pattern (optional)
+				break;
 			default:
-				fprintf(stderr, "Unknown 0x0 opcode {opcode:%04x}", opcode);
-
+				fprintf(stderr, "Unknown 0xF opcode %04X\n", opcode);
 				break;
 			}
 			break;
 		}
+		default:
+			fprintf(stderr, "Unknown opcode: %04X\n", opcode);
+			break;
+		}
 
-		}
-		}
+		if (cpu->_ST != 0) cpu->_ST--;
 	}
 }
-

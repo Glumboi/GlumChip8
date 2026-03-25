@@ -8,7 +8,7 @@ using System.Threading.Tasks.Sources;
 
 namespace GlumChip8.Core
 {
-    internal class Chip8Native
+    public class Chip8Native
     {
 
         [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
@@ -36,6 +36,8 @@ namespace GlumChip8.Core
 
         [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern void Chip8_Reset_Rom();
+        [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Chip8Keyboard_UpdateKeys([MarshalAs(UnmanagedType.LPArray, SizeConst = 16)] byte[] keys, int lastPressed);
     }
 
     public class Chip8System
@@ -77,49 +79,53 @@ namespace GlumChip8.Core
 
         public void Update()
         {
-            //Keyboard.UpdateFromPCKeyBoard();
-            //CPU.ExecuteCurrent();
+            // 1. Logic
+            Chip8Native.Chip8Keyboard_UpdateKeys(Keyboard._keys, Keyboard.LastPressed);
             Chip8Native.Chip8_CPU_Step();
-            IntPtr planePtr = Chip8Native.Chip8Display_GetPlane(0);
-            if (planePtr == IntPtr.Zero)
-            {
-                System.Console.WriteLine("Error: plane pointer is null!");
-            }
-            else
-            {
-                float scaleX = (float)Raylib.GetScreenWidth() / 128;
-                float scaleY = (float)Raylib.GetScreenHeight() / 64;
 
-                unsafe
+            // 2. Rendering
+            Raylib.ClearBackground(Color.Black);
+
+            // Get actual window size for scaling
+            float screenW = Raylib.GetScreenWidth();
+            float screenH = Raylib.GetScreenHeight();
+            float scaleX = screenW / 128.0f;
+            float scaleY = screenH / 64.0f;
+
+            unsafe
+            {
+                for (int p = 0; p < 2; p++)
                 {
-                    byte* plane = (byte*)planePtr;
+                    byte* plane = (byte*)Chip8Native.Chip8Display_GetPlane(p);
+                    if (plane == null) continue;
+
+                    Color pColor = (p == 0) ? Color.White : Color.Gray;
+
                     for (int y = 0; y < 64; y++)
                     {
                         for (int x = 0; x < 128; x++)
                         {
+                            // Use the 1D index consistently
                             if (plane[y * 128 + x] != 0)
+                            {
                                 Raylib.DrawRectangle(
                                     (int)(x * scaleX),
                                     (int)(y * scaleY),
-                                    (int)scaleX,
-                                    (int)scaleY,
-                                    Color.White
+                                    (int)Math.Ceiling(scaleX),
+                                    (int)Math.Ceiling(scaleY),
+                                    pColor
                                 );
+                            }
                         }
                     }
                 }
             }
-            Display.Render();
         }
-
         public void LaunchFromFile(string file)
         {
+            Chip8Native.Chip8_CPU_SetRunning(false);
             Chip8Native.RunChip8Rom_FromFile(file);
             Chip8Native.Chip8_CPU_SetRunning(true);
-            //var b = File.ReadAllBytes(file);
-            //CPU.InitSystemDefault();
-            //CPU.LoadProgram(Path.GetFileNameWithoutExtension(file), b);
-            //CPU.SetRunning(true);
         }
 
     }
