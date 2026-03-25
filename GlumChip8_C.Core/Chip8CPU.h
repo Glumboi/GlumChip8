@@ -7,10 +7,11 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "Chip8Defines.h"
+#include "Chip8System.h"
 #include "Chip8RAM.h"
+#include "Chip8Display.h"
 
-typedef struct
+typedef struct _chip8CPU
 {
 	Word _registers[CHIP8_REG_CNT + 1]; // +1 for the 16th reg
 	DoubleWord _vI, _PC;

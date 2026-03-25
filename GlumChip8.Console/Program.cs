@@ -1,23 +1,65 @@
 ﻿using GlumChip8.Core;
+using Raylib_cs;
+using System.Runtime.InteropServices;
 
 namespace GlumChip8.Console
 {
+
+    class Chip8Native
+    {
+        [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern void RunChip8Rom_FromFile(string file);
+        // Add these two new methods to match the DLL
+        [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Chip8_CPU_Step();
+        [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Chip8_Display_Render();
+        [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
+        public static extern IntPtr Chip8Display_GetPlane(int planeIndex);
+    }
+
     internal class Program
     {
         static void Main(string[] args)
         {
-            CPU cpu = new();
-            const string file = @"F:\Github\GlumChip8\TestRoms\6-keypad.ch8";
-            if (!File.Exists(file))
+            Chip8Native.RunChip8Rom_FromFile(@"F:\Github\GlumChip8\TestRoms\2-ibm-logo.ch8");
+            Raylib.InitWindow(800, 600, "TEST");
+            float scaleX = (float)Raylib.GetScreenWidth() / 128;
+            float scaleY = (float)Raylib.GetScreenHeight() / 64;
+
+            while (!Raylib.WindowShouldClose())
             {
-                System.Console.WriteLine($"File {file} does not exist.");
-                return;
+                Raylib.BeginDrawing();
+                Raylib.ClearBackground(Color.Black);
+                Chip8Native.Chip8_CPU_Step();
+                IntPtr planePtr = Chip8Native.Chip8Display_GetPlane(0);
+                if (planePtr == IntPtr.Zero)
+                {
+                    System.Console.WriteLine("Error: plane pointer is null!");
+                }
+                else
+                {
+                    unsafe
+                    {
+                        byte* plane = (byte*)planePtr;
+                        for (int y = 0; y < 64; y++)
+                        {
+                            for (int x = 0; x < 128; x++)
+                            {
+                                if (plane[y * 128 + x] != 0)
+                                    Raylib.DrawRectangle(
+                                        (int)(x * scaleX),
+                                        (int)(y * scaleY),
+                                        (int)scaleX,
+                                        (int)scaleY,
+                                        Color.White
+                                    );
+                            }
+                        }
+                    }
+                }
+                Raylib.EndDrawing();
             }
-            var b = File.ReadAllBytes(file);
-            cpu.LoadProgram(Path.GetFileNameWithoutExtension(file), b);
-            cpu.RunLoadedProgram();
-            System.Console.WriteLine("Program executed, register state: ");
-            System.Console.WriteLine(cpu.GetRegisterState());
         }
     }
 }

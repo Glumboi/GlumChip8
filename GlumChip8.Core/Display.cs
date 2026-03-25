@@ -106,29 +106,38 @@ namespace GlumChip8.Core
         {
             if (!_isHighRes)
             {
-                // Scale 64x32 coordinates to the 128x64 buffer (2x2 blocks)
+                // Low-res 64x32 -> scale to 128x64
                 bool collision = false;
+
+                int baseX = x * 2;
+                int baseY = y * 2;
+
                 for (int i = 0; i < 2; i++)
                 {
                     for (int j = 0; j < 2; j++)
                     {
-                        int targetX = ((x % 64) * 2 + i);
-                        int targetY = ((y % 32) * 2 + j);
+                        int targetX = baseX + i;
+                        int targetY = baseY + j;
+
+                        if (targetX >= SCREEN_WIDTH || targetY >= SCREEN_HEIGHT)
+                            continue; // Skip out-of-bounds
 
                         bool oldPixel = _planes[plane][targetX, targetY];
                         _planes[plane][targetX, targetY] = oldPixel ^ pixelOn;
-                        if (oldPixel && !(_planes[plane][targetX, targetY])) collision = true;
+                        if (oldPixel && !(_planes[plane][targetX, targetY]))
+                            collision = true;
                     }
                 }
+
                 return collision;
             }
 
-            // Standard High-Res Logic
+            // High-res mode 128x64
             x %= SCREEN_WIDTH;
             y %= SCREEN_HEIGHT;
-            bool old = _planes[plane][x, y];
-            _planes[plane][x, y] = old ^ pixelOn;
-            return old && !(_planes[plane][x, y]);
+            bool oldHigh = _planes[plane][x, y];
+            _planes[plane][x, y] = oldHigh ^ pixelOn;
+            return oldHigh && !(_planes[plane][x, y]);
         }
 
         public void ScrollDown(int n)

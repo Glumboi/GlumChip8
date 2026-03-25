@@ -30,7 +30,7 @@ DoubleWord Chip8CPU_Pop(Chip8CPU* cpu)
 
 void Chip8CPU_WriteRegister(Chip8CPU* cpu, Word targetReg, Word val)
 {
-	if (targetReg > CHIP8_REG_CNT)
+	if (targetReg >= CHIP8_REG_CNT)
 	{
 		fprintf(stderr, "Target Register out of range!\n");
 		return;
@@ -41,7 +41,7 @@ void Chip8CPU_WriteRegister(Chip8CPU* cpu, Word targetReg, Word val)
 
 Word Chip8CPU_ReadRegister(Chip8CPU* cpu, Word targetReg)
 {
-	if (targetReg > CHIP8_REG_CNT)
+	if (targetReg >= CHIP8_REG_CNT)
 	{
 		fprintf(stderr, "Target Register out of range!\n");
 		return 0xFF;
@@ -52,16 +52,8 @@ Word Chip8CPU_ReadRegister(Chip8CPU* cpu, Word targetReg)
 
 void Chip8CPU_LoadProgram(Chip8CPU* cpu, Word* program, size_t programSz)
 {
-	if (programSz > CHIP8_RAM_SZ - CHIP8_PROGRAM_START)
-	{
-		fprintf(stderr, "Program too big!\n");
-		return;
-	}
-
 	for (size_t i = 0; i < programSz; i++)
-	{
-		// write to ram
-	}
+		Chip8RAM_WriteByte(cpu->_ram, CHIP8_PROGRAM_START + i, program[i]);
 	cpu->_programLen = programSz;
 }
 
@@ -81,7 +73,7 @@ void Chip8CPU_ResetRegisters(Chip8CPU* cpu)
 {
 	memset(cpu->_registers, 0, sizeof(cpu->_registers));
 	cpu->_vI = 0;
-	cpu->_PC = MEM_ROM_DATA_START;
+	cpu->_PC = CHIP8_PROGRAM_START;
 	cpu->_SP = 0;
 	cpu->_DT = 0;
 	cpu->_ST = 0;
@@ -90,27 +82,27 @@ void Chip8CPU_ResetRegisters(Chip8CPU* cpu)
 void Chip8CPU_ResetCurrentRom(Chip8CPU* cpu)
 {
 	Chip8CPU_ResetRegisters(cpu);
-	//_display.Clear();
+	Chip8Display_Clear(g_chip8SystemInstance._display, 0);
 	//_keyboard = new();
 }
 
 void Chip8CPU_ExecuteCurrent(Chip8CPU* cpu)
 {
-
 	for (size_t i = 0; i < CHIP8_CYCLES; i++)
 	{
 		if (cpu->_PC >= CHIP8_PROGRAM_START + cpu->_programLen) break;
 
 		DoubleWord opcode = Chip8CPU_Step(cpu);
+		fprintf(stdout, "Executing opcode %04X\n", opcode);
 		switch (opcode & 0xF000)
 		{
-		case 0x1000: Jump(opcode); break;
+		case 0x1000: Chip8CPU_Jump(cpu, opcode); break;
 		case 0x0000:
 		{
 			switch (opcode)
 			{
 			case 0x00E0: // CLS: Clear screen
-				//_display.Clear();
+				Chip8Display_Clear(g_chip8SystemInstance._display, 0);
 				break;
 
 			case 0x00EE: // RET: Return from subroutine
@@ -118,11 +110,11 @@ void Chip8CPU_ExecuteCurrent(Chip8CPU* cpu)
 				break;
 
 			case 0x00FB: // SCR: Scroll right 4 pixels
-				//_display.ScrollRight(4);
+				Chip8Display_Scroll(g_chip8SystemInstance._display, 4, 2);
 				break;
 
 			case 0x00FC: // SCL: Scroll left 4 pixels
-				//_display.ScrollLeft(4);
+				Chip8Display_Scroll(g_chip8SystemInstance._display, 4, 1);
 				break;
 
 			case 0x00FD: // EXIT: Terminate interpreter
@@ -130,17 +122,17 @@ void Chip8CPU_ExecuteCurrent(Chip8CPU* cpu)
 				break;
 
 			case 0x00FE: // LOW: Disable high-res (64x32)
-				//_display.SetResolution(64, 32);
+				Chip8Display_SetResolution(g_chip8SystemInstance._display, 64, 32);
 				break;
 			case 0x00FF: // HIGH: Enable high-res (128x64)
-				//_display.SetResolution(128, 64);
+				Chip8Display_SetResolution(g_chip8SystemInstance._display, 128, 64);
 				break;
 			default:
 				// Handle 00CN (Scroll down N pixels)
 				if ((opcode & 0x00F0) == 0x00C0)
 				{
 					Word n = opcode & 0x000F;
-					//_display.ScrollDown(n);
+					Chip8Display_Scroll(g_chip8SystemInstance._display, n, 0);
 				}
 				else
 				{
@@ -159,7 +151,7 @@ void Chip8CPU_ExecuteCurrent(Chip8CPU* cpu)
 		case 0x3000:
 		{
 			Word x = ((opcode & 0x0F00) >> 8);
-			Word n = ReadRegister(x);
+			Word n = Chip8CPU_ReadRegister(cpu, x);
 			if (n == (opcode & 0x00FF))
 			{
 				cpu->_PC += 2; // skip next instruction
@@ -169,7 +161,7 @@ void Chip8CPU_ExecuteCurrent(Chip8CPU* cpu)
 		case 0x4000:
 		{
 			Word x = ((opcode & 0x0F00) >> 8);
-			Word n = ReadRegister(x);
+			Word n = Chip8CPU_ReadRegister(cpu, x);
 			if (n != (opcode & 0x00FF))
 			{
 				cpu->_PC += 2;
@@ -182,7 +174,7 @@ void Chip8CPU_ExecuteCurrent(Chip8CPU* cpu)
 			Word y = ((opcode & 0x00F0) >> 4);
 			if ((opcode & 0x000F) == 0x0000)
 			{
-				if (ReadRegister(x) == ReadRegister(y))
+				if (Chip8CPU_ReadRegister(cpu, x) == Chip8CPU_ReadRegister(cpu, y))
 				{
 					cpu->_PC += 2;
 				}
@@ -245,7 +237,7 @@ void Chip8CPU_ExecuteCurrent(Chip8CPU* cpu)
 			switch (opcode & 0x000F)
 			{
 			case 0x0000: Chip8CPU_WriteRegister(cpu, x, Chip8CPU_ReadRegister(cpu, y)); break;
-			case 0x0001: Chip8CPU_WriteRegister(cpu, x, (Chip8CPU_ReadRegister(cpu, x) | ReadRegister(y))); break;
+			case 0x0001: Chip8CPU_WriteRegister(cpu, x, (Chip8CPU_ReadRegister(cpu, x) | Chip8CPU_ReadRegister(cpu, y))); break;
 			case 0x0002: Chip8CPU_WriteRegister(cpu, x, (Chip8CPU_ReadRegister(cpu, x) & Chip8CPU_ReadRegister(cpu, y))); break;
 			case 0x0003: Chip8CPU_WriteRegister(cpu, x, (Chip8CPU_ReadRegister(cpu, x) ^ Chip8CPU_ReadRegister(cpu, y))); break;
 			case 0x0004:
@@ -281,7 +273,7 @@ void Chip8CPU_ExecuteCurrent(Chip8CPU* cpu)
 			case 0x0007:
 			{
 				Word valX = Chip8CPU_ReadRegister(cpu, x);
-				Word valY = ReadRegister(cpu, y);
+				Word valY = Chip8CPU_ReadRegister(cpu, y);
 
 				// VF is set to 1 if Vy >= Vx (No Borrow)
 				Word borrowFlag = (valY >= valX ? 1 : 0);
@@ -300,13 +292,14 @@ void Chip8CPU_ExecuteCurrent(Chip8CPU* cpu)
 				fprintf(stderr, "Unknown 0x0 opcode {opcode:%04x}", opcode);
 				break;
 			}
+			break;
 		case 0x9000:
 		{
 			Word x = ((opcode & 0x0F00) >> 8);
 			Word y = ((opcode & 0x00F0) >> 4);
 			if ((opcode & 0x000F) == 0x0000)
 			{
-				if (ReadRegister(x) != ReadRegister(y))
+				if (Chip8CPU_ReadRegister(cpu, x) != Chip8CPU_ReadRegister(cpu, y))
 				{
 					cpu->_PC += 2;
 				}
@@ -334,58 +327,33 @@ void Chip8CPU_ExecuteCurrent(Chip8CPU* cpu)
 		}
 		case 0xD000:
 		{
-			Word x = Chip8CPU_ReadRegister(cpu, ((opcode & 0x0F00) >> 8));
-			Word y = Chip8CPU_ReadRegister(cpu, ((opcode & 0x00F0) >> 4));
-			Word height = (opcode & 0x000F);
+			Word x = Chip8CPU_ReadRegister(cpu, (opcode & 0x0F00) >> 8);
+			Word y = Chip8CPU_ReadRegister(cpu, (opcode & 0x00F0) >> 4);
+			Word height = opcode & 0x000F;
+			if (height == 0) height = 16;
+
+			// Allocate sprite safely
+			Word* spriteData = malloc(sizeof(Word) * height);
+			if (!spriteData)
+				break;
+
+			// Load sprite bytes from memory
+			for (int i = 0; i < height; i++)
+				spriteData[i] = Chip8RAM_ReadByte(cpu->_ram, cpu->_vI + i);
 
 			bool collision = false;
-
-			if (height == 0)
+			// Draw on all active planes
+			for (int plane = 0; plane < 2; plane++)
 			{
-				// DXY0 -> 16x16 XO-CHIP sprite
-				Word sprite16[32] = { 0 };
-				for (int j = 0; j < 32; j++)
-				{
-					sprite16[j] = Chip8RAM_ReadByte(cpu->_ram, cpu->_vI + j);
-				}
-
-				// DRAW TO ALL ACTIVE PLANES
-				for (int p = 0; p < 2; p++)
-				{
-					if ((cpu->_activePlanes & (1 << p)) != 0)
-					{
-						//collision |= cpu->_display.DrawSprite16(x, y, sprite16, p);
-					}
-				}
-			}
-			else
-			{
-				// Classic 8xN sprite
-				Word* sprite8 = malloc(height);
-				if (!sprite8)
-				{
-					fprintf(stderr, "Failed to allocate sufficent memory for drawing 8x8 sprites!\n");
-					return;
-				}
-				for (int j = 0; j < height; j++)
-				{
-					sprite8[j] = Chip8RAM_ReadByte(cpu->_ram, cpu->_vI + j);
-				}
-
-				for (int p = 0; p < 2; p++)
-				{
-					if ((cpu->_activePlanes & (1 << p)) != 0)
-					{
-						//collision |= _display.DrawSprite(x, y, sprite8, p);
-					}
-				}
-
-				free(sprite8);
+				if ((cpu->_activePlanes & (1 << plane)) != 0)
+					collision |= Chip8Display_DrawSprite(g_chip8SystemInstance._display, x, y, spriteData, height, plane);
 			}
 
-			// Set VF for collision
-			cpu->_registers[0xF] = (collision ? 1 : 0);
+			cpu->_registers[0xF] = collision ? 1 : 0;
 
+			free(spriteData);
+
+			Chip8Display_Render(g_chip8SystemInstance._display, cpu->_activePlanes);
 			break;
 		}
 		case 0xE000:
@@ -396,19 +364,19 @@ void Chip8CPU_ExecuteCurrent(Chip8CPU* cpu)
 			case 0x009E:
 				// skip next instruction if key with the value of Vx is pressed
 				//if (cpu->_keyboard.IsKeyPressed(ReadRegister(x)))
-				{
-					cpu->_PC += 2;
-					break;
-				}
+			{
+				cpu->_PC += 2;
 				break;
+			}
+			break;
 			case 0x00A1:
 				// skip next instruction if key with the value of Vx is not pressed
 				//if (!cpu->_keyboard.IsKeyPressed(ReadRegister(x)))
-				{
-					cpu->_PC += 2;
-					break;
-				}
+			{
+				cpu->_PC += 2;
 				break;
+			}
+			break;
 			default:
 				fprintf(stderr, "Unknown 0x0 opcode {opcode:%04x}", opcode);
 

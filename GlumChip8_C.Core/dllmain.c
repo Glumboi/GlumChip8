@@ -1,18 +1,77 @@
-#include <Windows.h>
+#include "Chip8System.h"
 
-BOOL APIENTRY DllMain( HMODULE hModule,
-                       DWORD  ul_reason_for_call,
-                       LPVOID lpReserved
-                     )
+#include "Chip8CPU.h"
+#include "Chip8Display.h"
+#include "Chip8RAM.h"
+
+EXPORT_FN void Init_Chip8Emulator(void)
 {
-    switch (ul_reason_for_call)
-    {
-    case DLL_PROCESS_ATTACH:
-    case DLL_THREAD_ATTACH:
-    case DLL_THREAD_DETACH:
-    case DLL_PROCESS_DETACH:
-        break;
-    }
-    return TRUE;
+	static Chip8CPU cpu;
+	cpu = Chip8CPU_Create();
+
+	static Chip8Display display;
+	display = Chip8Display_Create();
+	static Chip8RAM ram;
+	memset(&ram, 0, sizeof(ram));
+	cpu._ram = &ram;
+	cpu._activePlanes = 0b01;
+	Chip8CPU_ResetRegisters(&cpu);
+	Chip8System_Init(&cpu, &display, &ram);
 }
 
+EXPORT_FN void Chip8_Reset_Rom(void)
+{
+	Chip8CPU_ResetRegisters(g_chip8SystemInstance._cpu);
+	g_chip8SystemInstance._cpu->_activePlanes = 0b01;
+	Chip8Display_Clear(g_chip8SystemInstance._display, 0);
+	Chip8Display_Clear(g_chip8SystemInstance._display,1);
+}
+
+EXPORT_FN void Chip8_CPU_Step(void)
+{
+	Chip8CPU_ExecuteCurrent(g_chip8SystemInstance._cpu);
+}
+
+EXPORT_FN bool Chip8_CPU_GetRunning(void)
+{
+	if (!g_chip8SystemInstance._cpu)return false;
+	return g_chip8SystemInstance._cpu->_running;
+}
+
+EXPORT_FN void Chip8_CPU_SetRunning(bool v)
+{
+	if (!g_chip8SystemInstance._cpu) return;
+	g_chip8SystemInstance._cpu->_running = v;
+}
+
+// Returns pointer to plane 0 or 1
+// Store pixels as bytes: 0 = off, 1 = on
+EXPORT_FN Word* Chip8Display_GetPlane(int plane)
+{
+	if (!g_chip8SystemInstance._display) return NULL;        // null check
+	if (plane < 0 || plane > 1) return NULL;
+
+	return g_chip8SystemInstance._display->_planes[plane];   // must be flattened: Word _planes[2][128*64]
+}
+
+EXPORT_FN void RunChip8Rom_FromFile(const char* file)
+{
+	Init_Chip8Emulator();
+
+	if (!file) return;
+	FILE* f = fopen(file, "rb");
+	if (!f) return;
+
+	fseek(f, 0, SEEK_END);
+	size_t len = ftell(f);
+	rewind(f);
+
+	Word* rombuff = malloc(len);
+	if (!rombuff) return;
+	fread(rombuff, 1, len, f);
+	fclose(f);
+
+	Chip8CPU_LoadProgram(g_chip8SystemInstance._cpu, rombuff, len);
+
+	free(rombuff);
+}

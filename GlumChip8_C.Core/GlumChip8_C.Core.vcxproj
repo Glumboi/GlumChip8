@@ -126,6 +126,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
+      <AdditionalDependencies>winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -146,10 +147,12 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
+      <AdditionalDependencies>winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Chip8CPU.c" />
+    <ClCompile Include="Chip8Display.c" />
     <ClCompile Include="Chip8RAM.c" />
     <ClCompile Include="Chip8System.c" />
     <ClCompile Include="dllmain.c" />
@@ -164,6 +167,7 @@
     <ClInclude Include="Chip8Keyboard.h" />
     <ClInclude Include="Chip8RAM.h" />
     <ClInclude Include="Chip8Sound.h" />
+    <ClInclude Include="HelperDefines.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

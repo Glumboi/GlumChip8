@@ -27,6 +27,9 @@
     <ClCompile Include="Chip8RAM.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Chip8Display.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="Chip8System.h">
@@ -50,6 +53,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Chip8Defines.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="HelperDefines.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

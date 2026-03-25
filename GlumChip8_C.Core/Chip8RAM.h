@@ -3,7 +3,7 @@
 
 #include "Chip8Defines.h"
 
-typedef struct
+typedef struct _chip8RAM
 {
 	DoubleWord _data[CHIP8_RAM_SZ];
 } Chip8RAM;
