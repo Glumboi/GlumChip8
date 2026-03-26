@@ -11,7 +11,7 @@ typedef uint16_t DoubleWord;
 
 #define CHIP8_REG_CNT 16
 #define CHIP8_STACK_CNT 16
-#define CHIP8_CYCLES 10
+#define CHIP8_CYCLES 17
 #define CHIP8_DEFAULT_ACTIVE_PLANES 0b01
 
 #define CHIP8_RAM_SZ 65536

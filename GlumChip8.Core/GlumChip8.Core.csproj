@@ -17,6 +17,13 @@
 		<None Update="Assets\buzz.wav">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
+		<None Update="lib\GlumChip8_C.Core.dll">
+		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="lib\" />
 	</ItemGroup>
 
 </Project>

@@ -29,13 +29,28 @@ void Chip8Display_SetResolution(Chip8Display* display, int w, int h)
 bool Chip8Display_DrawSprite(Chip8Display* display, int x, int y, Word* sprite, int height, int plane)
 {
 	bool collision = false;
+	int targetWidth = display->_isHighRes ? 128 : 64;
+	int targetHeight = display->_isHighRes ? 64 : 32;
+
+	int startX = x % targetWidth;
+	int startY = y % targetHeight;
+	if (startX < 0) startX += targetWidth;
+	if (startY < 0) startY += targetHeight;
+
 	for (int row = 0; row < height; row++)
 	{
+		if (startY + row >= targetHeight) break;
+
 		Word spriteRow = sprite[row];
 		for (int col = 0; col < 8; col++)
 		{
+			if (startX + col >= targetWidth) break;
 			if ((spriteRow & (0x80 >> col)) != 0)
-				collision |= Chip8Display_XorPixel(display, x + col, y + row, true, plane);
+			{
+				// Pass 'true' because the sprite data indicates a pixel should be drawn here
+				if (Chip8Display_XorPixel(display, startX + col, startY + row, true, plane))
+					collision = true;
+			}
 		}
 	}
 	return collision;
@@ -50,107 +65,95 @@ bool Chip8Display_DrawSprite16(Chip8Display* display, int x, int y, Word* sprite
 		return collision;
 	}
 
+	int targetWidth = display->_isHighRes ? 128 : 64;
+	int targetHeight = display->_isHighRes ? 64 : 32;
+	int startX = x % targetWidth;
+	int startY = y % targetHeight;
+	if (startX < 0) startX += targetWidth;
+	if (startY < 0) startY += targetHeight;
+
 	for (int row = 0; row < 16; row++)
 	{
-		// Each row uses 2 bytes: high byte then low byte
+		if (startY + row >= targetHeight) break; // CLIP
 		Word rowBits = ((sprite[row * 2] << 8) | sprite[row * 2 + 1]);
 
 		for (int col = 0; col < 16; col++)
 		{
-			bool pixelOn = (rowBits & (1 << (15 - col))) != 0; // MSB = leftmost
-			if (pixelOn)
+			if (startX + col >= targetWidth) break; // CLIP
+			if ((rowBits & (0x8000 >> col)) != 0)
 			{
-				collision |= Chip8Display_XorPixel(display, x + col, y + row, true, plane);
+				if (Chip8Display_XorPixel(display, startX + col, startY + row, true, plane))
+					collision = true;
 			}
 		}
 	}
-
 	return collision;
 }
 
 void Chip8Display_Render(Chip8Display* display, Word activePlanes)
 {
-	int screenW = GetScreenWidth();
-	int screenH = GetScreenHeight();
+	// Get actual Raylib window dimensions
+	float windowW = (float)GetScreenWidth();
+	float windowH = (float)GetScreenHeight();
+	if (windowW <= 0 || windowH <= 0) return;
 
-	if (screenW == 0 || screenH == 0) return;
+	// Logical dimensions (how many "pixels" the game thinks it has)
+	int simW = display->_isHighRes ? 128 : 64;
+	int simH = display->_isHighRes ? 64 : 32;
 
-	float scaleX = (float)screenW / CHIP8_SCREEN_WIDTH;
-	float scaleY = (float)screenH / CHIP8_SCREEN_HEIGHT;
+	// Scale factors to stretch those pixels to the full window
+	float scaleX = windowW / (float)simW;
+	float scaleY = windowH / (float)simH;
 
-	for (int p = 0; p < CHIP8_DISPLAY_GET_NUMBER_OF_PLANES(display); p++)
+	for (int p = 0; p < 2; p++)
 	{
-		// Only render active planes
 		if ((activePlanes & (1 << p)) == 0) continue;
 
-		for (int y = 0; y < CHIP8_SCREEN_HEIGHT; y++)
+		for (int y = 0; y < simH; y++)
 		{
-			for (int x = 0; x < CHIP8_SCREEN_WIDTH; x++)
+			for (int x = 0; x < simW; x++)
 			{
-				if (display->_planes[p][y * CHIP8_SCREEN_WIDTH + x]) 
+				// CRITICAL: Always use 128 as the stride for the memory index
+				// because your display->_planes[p] is a 128x64 array.
+				if (display->_planes[p][y * 128 + x])
 				{
-					DrawRectangleV((Vector2) { x* scaleX, y* scaleY },
+					DrawRectangleV(
+						(Vector2)
+					{
+						x* scaleX, y* scaleY
+					},
 						(Vector2)
 					{
 						scaleX, scaleY
 					},
-						CHIP8_DISPLAY_COLOR);
+						CHIP8_DISPLAY_COLOR
+					);
 				}
 			}
 		}
 	}
 }
 
+
+
 bool Chip8Display_XorPixel(Chip8Display* display, int x, int y, bool pixelOn, int plane)
 {
-	if (!display || plane < 0 || plane > 1) return false;
+	if (!display || plane < 0 || plane > 1 || !pixelOn) return false;
 
-	// 1. Determine actual logical bounds based on current resolution
-	int targetWidth = display->_isHighRes ? 128 : 64;
-	int targetHeight = display->_isHighRes ? 64 : 32;
+	// Logical bounds check
+	int limitW = display->_isHighRes ? 128 : 64;
+	int limitH = display->_isHighRes ? 64 : 32;
+	if (x < 0 || x >= limitW || y < 0 || y >= limitH) return false;
 
-	// 2. Wrap the starting coordinates
-	x %= targetWidth;
-	y %= targetHeight;
-
-	// Ensure positive results for wrapping
-	if (x < 0) x += targetWidth;
-	if (y < 0) y += targetHeight;
-
-	bool collision = false;
+	int idx = y * 128 + x;
 	Word* planeData = display->_planes[plane];
 
-	if (!display->_isHighRes)
-	{
-		// Low-res 64x32 mode: We scale 1 pixel into a 2x2 block 
-		// in our 128x64 internal buffer to keep memory consistent.
-		for (int i = 0; i < 2; i++)
-		{
-			for (int j = 0; j < 2; j++)
-			{
-				int tx = (x * 2) + i;
-				int ty = (y * 2) + j;
+	bool oldPixel = (planeData[idx] != 0);
+	planeData[idx] ^= 1;
 
-				int idx = ty * 128 + tx;
-				bool oldPixel = planeData[idx] != 0;
-				planeData[idx] ^= (pixelOn ? 1 : 0);
-
-				// If any of the 4 sub-pixels were turned off, it's a collision
-				if (oldPixel && !planeData[idx]) collision = true;
-			}
-		}
-	}
-	else
-	{
-		// High-res 128x64 mode: Direct mapping
-		int idx = y * 128 + x;
-		bool oldPixel = planeData[idx] != 0;
-		planeData[idx] ^= (pixelOn ? 1 : 0);
-		collision = (oldPixel && !planeData[idx]);
-	}
-
-	return collision;
+	return oldPixel && (planeData[idx] == 0);
 }
+
 
 void Chip8Display_Scroll(Chip8Display* display, int n, Chip8Display_Scrolling_Direction direction)
 {
@@ -187,5 +190,14 @@ void Chip8Display_Scroll(Chip8Display* display, int n, Chip8Display_Scrolling_Di
 				memset(&plane[y * width + (width - n)], 0, n);
 			}
 		}
+		else if (direction == Up)
+		{
+			for (int y = 0; y < height - n; y++)
+			{
+				memcpy(&plane[y * width], &plane[(y + n) * width], width);
+			}
+			memset(&plane[(height - n) * width], 0, n * width);
+		}
+
 	}
 }

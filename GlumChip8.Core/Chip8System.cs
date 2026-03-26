@@ -21,6 +21,13 @@ namespace GlumChip8.Core
         [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
         [return: MarshalAs(UnmanagedType.I1)] // Forces 1-byte bool
         public static extern bool Chip8_CPU_GetRunning();
+        [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
+        [return: MarshalAs(UnmanagedType.I1)] // Forces 1-byte bool
+        public static extern bool Chip8Display_IsHighRes();
+
+        [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
+        [return: MarshalAs(UnmanagedType.I1)] // Forces 1-byte bool
+        public static extern bool Chip8Display_IsPlaneActive(int p);
 
         [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern void Chip8_CPU_SetRunning([MarshalAs(UnmanagedType.I1)] bool v);
@@ -33,6 +40,9 @@ namespace GlumChip8.Core
 
         [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern void Init_Chip8Emulator();
+
+        [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
+        public static extern void Chip8_Decrement_Timers();
 
         [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern void Chip8_Reset_Rom();
@@ -54,6 +64,15 @@ namespace GlumChip8.Core
         public CPU CPU { get => _cpu; }
 
         public bool Running { get => Chip8Native.Chip8_CPU_GetRunning(); }
+
+        private double _lastCpuTime;
+        private double _lastTimerTime;
+
+        private const double CPU_HZ = 700.0;
+        private const double TIMER_HZ = 60.0;
+
+        const int MAX_CYCLES = 20;
+        int cycles = 0;
 
         public Chip8System()
         {
@@ -79,33 +98,48 @@ namespace GlumChip8.Core
 
         public void Update()
         {
-            // 1. Logic
             Chip8Native.Chip8Keyboard_UpdateKeys(Keyboard._keys, Keyboard.LastPressed);
-            Chip8Native.Chip8_CPU_Step();
 
-            // 2. Rendering
-            Raylib.ClearBackground(Color.Black);
+            double now = Raylib.GetTime();
+            while (now - _lastCpuTime >= 1.0 / CPU_HZ && cycles < MAX_CYCLES)
+            {
+                Chip8Native.Chip8_CPU_Step();
+                _lastCpuTime += 1.0 / CPU_HZ;
+                cycles++;
+            }
 
-            // Get actual window size for scaling
+            while (now - _lastTimerTime >= 1.0 / TIMER_HZ)
+            {
+                Chip8Native.Chip8_Decrement_Timers();
+                _lastTimerTime += 1.0 / TIMER_HZ;
+            }
+
+
+            bool isHighRes = Chip8Native.Chip8Display_IsHighRes();
+            int simW = isHighRes ? 128 : 64;
+            int simH = isHighRes ? 64 : 32;
+
             float screenW = Raylib.GetScreenWidth();
             float screenH = Raylib.GetScreenHeight();
-            float scaleX = screenW / 128.0f;
-            float scaleY = screenH / 64.0f;
+
+            float scaleX = screenW / simW;
+            float scaleY = screenH / simH;
 
             unsafe
             {
                 for (int p = 0; p < 2; p++)
                 {
+                    if (!Chip8Native.Chip8Display_IsPlaneActive(p)) continue;
+
                     byte* plane = (byte*)Chip8Native.Chip8Display_GetPlane(p);
                     if (plane == null) continue;
 
                     Color pColor = (p == 0) ? Color.White : Color.Gray;
 
-                    for (int y = 0; y < 64; y++)
+                    for (int y = 0; y < simH; y++)
                     {
-                        for (int x = 0; x < 128; x++)
+                        for (int x = 0; x < simW; x++)
                         {
-                            // Use the 1D index consistently
                             if (plane[y * 128 + x] != 0)
                             {
                                 Raylib.DrawRectangle(
@@ -113,7 +147,7 @@ namespace GlumChip8.Core
                                     (int)(y * scaleY),
                                     (int)Math.Ceiling(scaleX),
                                     (int)Math.Ceiling(scaleY),
-                                    pColor
+                                    (p == 0) ? Color.White : Color.Gray
                                 );
                             }
                         }
