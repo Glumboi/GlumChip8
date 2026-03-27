@@ -3,6 +3,7 @@
 
 #include "Chip8Defines.h"
 #include <string.h>
+#include <raylib.h>
 
 typedef enum
 {
