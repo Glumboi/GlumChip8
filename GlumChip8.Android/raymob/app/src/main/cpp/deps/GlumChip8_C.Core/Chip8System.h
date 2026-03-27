@@ -17,13 +17,14 @@ typedef struct _chip8CPU Chip8CPU;
 
 typedef struct
 {
-	Chip8Display* _display;
-	Chip8RAM* _ram;
-	Chip8CPU* _cpu;
-	Chip8Keyboard* _keyboard;
+	Chip8Display *_display;
+	Chip8RAM *_ram;
+	Chip8CPU *_cpu;
+	Chip8Keyboard *_keyboard;
+	bool g_romLoaded;
 } Chip8System;
 
 extern Chip8System g_chip8SystemInstance;
-void Chip8System_Init(Chip8CPU* cpu, Chip8Display* display, Chip8RAM* ram, Chip8Keyboard* keyboard);
+void Chip8System_Init(Chip8CPU *cpu, Chip8Display *display, Chip8RAM *ram, Chip8Keyboard *keyboard);
 
-#endif	
+#endif

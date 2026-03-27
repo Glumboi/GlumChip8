@@ -7,13 +7,18 @@
 #include <math.h>
 #include <android/log.h>
 #include <EGL/egl.h>
+#include <android_native_app_glue.h>
 
 #include "raymob.h"
+#define RAYGUI_IMPLEMENTATION
+#include "raygui.h"
+
 #include "Chip8System.h"
 #include "Chip8CPU.h"
 #include "Chip8Display.h"
 #include "Chip8RAM.h"
 #include "Chip8Keyboard.h"
+#include "Chip8TouchControls.h"
 
 #define CPU_HZ 700.0
 #define TIMER_HZ 60.0
@@ -26,7 +31,6 @@
 //======================================================================================
 // GLOBALS
 //======================================================================================
-static bool g_romLoaded = false;
 static Word *bufferBytes = NULL;
 static double _lastCpuTime = 0.0;
 static double _lastTimerTime = 0.0;
@@ -108,23 +112,21 @@ void LoadChip8RomFromMemory(Word *buffer, size_t length)
     _lastTimerTime = GetTime();
 
     Chip8CPU_LoadProgram(g_chip8SystemInstance._cpu, buffer, length);
-    g_romLoaded = true;
+    g_chip8SystemInstance.g_romLoaded = true;
+    g_chip8SystemInstance._cpu->_running = true;
     LOGI("ROM loaded: %zu bytes", length);
 }
 
 //======================================================================================
 // UPDATE & RENDER
 //======================================================================================
-
 void Update_Chip8_Logic(void)
 {
-    if (!g_romLoaded)
+    if (!g_chip8SystemInstance.g_romLoaded)
         return;
 
-    // Process keyboard (Note: You'll need to link your touch-to-key logic here later)
     Chip8Keyboard_UpdateKeys(g_chip8SystemInstance._keyboard->_keys,
                              g_chip8SystemInstance._keyboard->_lastPressed);
-
     double now = GetTime();
     int cycles = 0;
 
@@ -149,10 +151,20 @@ void Draw_Chip8_To_Texture(RenderTexture2D texTarget)
     BeginTextureMode(texTarget);
     ClearBackground(BLACK);
 
+    if (!g_chip8SystemInstance.g_romLoaded)
+    {
+        DrawText("Please restart Emulator to open another ROM!", 10, 10, 5, WHITE);
+        EndTextureMode();
+        return;
+    }
+
     int simW = Chip8Display_IsHighRes() ? 128 : 64;
     int simH = Chip8Display_IsHighRes() ? 64 : 32;
     int scale = Chip8Display_IsHighRes() ? 1 : 2;
-    
+
+    // This is where the screen rendering ends
+    int screenDisplayWidth = simW * scale;
+
     Word *plane;
     Color color; // Gray for plane 2 for visibility
 
@@ -162,13 +174,12 @@ void Draw_Chip8_To_Texture(RenderTexture2D texTarget)
             continue;
 
         plane = Chip8Display_GetPlane(p);
-        color = (p == 0) ? WHITE : GRAY; // Gray for plane 2 for visibility
+        color = (p == 0) ? WHITE : GRAY;
 
         for (int y = 0; y < simH; y++)
         {
             for (int x = 0; x < simW; x++)
             {
-                // Stride is ALWAYS 128 based on your Chip8Display implementation
                 if (plane[y * 128 + x])
                 {
                     DrawRectangle(x * scale, y * scale, scale, scale, color);
@@ -176,13 +187,19 @@ void Draw_Chip8_To_Texture(RenderTexture2D texTarget)
             }
         }
     }
+    const char *msg = TextFormat("ROM: %4X | FPS: %d",
+                                 Chip8RAM_ReadByte(g_chip8SystemInstance._cpu->_ram, g_chip8SystemInstance._cpu->_PC),
+                                 GetFPS());
+
+    DrawText(msg, 10, 10, 10, GREEN);
+
+    Chip8TouchControls_Render(g_chip8SystemInstance._keyboard->_keys, screenDisplayWidth);
     EndTextureMode();
 }
 
 //======================================================================================
 // JNI CALLBACKS
 //======================================================================================
-
 JNIEXPORT void JNICALL
 Java_com_raylib_raymob_NativeLoader_sendBytesToNative(JNIEnv *env, jobject thiz, jbyteArray buffer)
 {
@@ -225,60 +242,71 @@ Java_com_raylib_raymob_NativeLoader_sendUriToNative(JNIEnv *env, jobject thiz, j
 }
 
 //======================================================================================
+// JNI REQUESTS
+//======================================================================================
+
+extern struct android_app *GetAndroidApp(void);
+
+void Request_Android_FilePicker(void)
+{
+    struct android_app *app = GetAndroidApp();
+    if (!app)
+        return;
+
+    JavaVM *jvm = app->activity->vm;
+    JNIEnv *env = NULL;
+
+    // Get the env for the current thread
+    (*jvm)->GetEnv(jvm, (void **)&env, JNI_VERSION_1_6);
+    (*jvm)->AttachCurrentThread(jvm, &env, NULL);
+
+    jclass nativeLoaderClass = (*env)->FindClass(env, "com/raylib/raymob/NativeLoader");
+    jmethodID openPickerMethod = (*env)->GetStaticMethodID(env, nativeLoaderClass, "openFilePicker", "()V");
+
+    if (openPickerMethod)
+    {
+        (*env)->CallStaticVoidMethod(env, nativeLoaderClass, openPickerMethod);
+    }
+}
+
+//======================================================================================
 // MAIN LOOP
 //======================================================================================
 int main(void)
 {
-    // Android initialization - Raylib handles the surface creation
-    InitWindow(0, 0, "raylib Chip8 Emulator");
+    InitWindow(0, 0, "GlumChip8");
 
-    // Create the virtual canvas for the 128x64 display
-    target = LoadRenderTexture(128, 64);
+    // 128 (Chip8 HighRes Width) + 120 (Keypad width + padding) = 248
+    target = LoadRenderTexture(248, 64);
 
     // Use POINT filter to keep that chunky pixel look on mobile
     SetTextureFilter(target.texture, TEXTURE_FILTER_POINT);
-
     SetTargetFPS(60);
 
     while (!WindowShouldClose())
     {
-
         BeginDrawing();
         ClearBackground(BLACK);
-
-        if (g_romLoaded)
-        {
-            g_chip8SystemInstance._cpu->_running = true;
-
-            Update_Chip8_Logic();
-            // Chip8Display_Render(g_chip8SystemInstance._display, g_chip8SystemInstance._activePlanes);
-            Draw_Chip8_To_Texture(target);
-
-            // Draw the internal buffer scaled up to fill the actual Android screen
-            // Source rect height is negative because OpenGL textures are Y-flipped
-            DrawTexturePro(target.texture,
-                           (Rectangle){0, 0, (float)target.texture.width, (float)-target.texture.height},
-                           (Rectangle){0, 0, (float)GetScreenWidth(), (float)GetScreenHeight()},
-                           (Vector2){0, 0}, 0.0f, WHITE);
-
-            const char *msg = TextFormat("Running ROM!\nOP: %4X\nFPS: %d", Chip8RAM_ReadByte(g_chip8SystemInstance._cpu->_ram, g_chip8SystemInstance._cpu->_PC), GetFPS());
-            DrawText(msg, 50, 10, 10, GREEN);
-        }
-        else
-        {
-            DrawText("Please select a ROM from the Android picker...", 50, GetScreenHeight() / 2, 20, WHITE);
-        }
+        Update_Chip8_Logic();
+        // Chip8Display_Render(g_chip8SystemInstance._display, g_chip8SystemInstance._activePlanes);
+        Draw_Chip8_To_Texture(target);
+        // Draw the internal buffer scaled up to fill the actual Android screen
+        // Source rect height is negative because OpenGL textures are Y-flipped
+        DrawTexturePro(target.texture,
+                       (Rectangle){0, 0, (float)target.texture.width, (float)-target.texture.height},
+                       (Rectangle){0, 0, (float)GetScreenWidth(), (float)GetScreenHeight()},
+                       (Vector2){0, 0}, 0.0f, WHITE);
         EndDrawing();
 
         // Android back button or key escape resets the ROM
         if (IsKeyPressed(KEY_ESCAPE))
         {
-            g_romLoaded = false;
             LOGI("ROM reset requested");
+            g_chip8SystemInstance.g_romLoaded = false;
+            g_chip8SystemInstance._cpu->_running = false;
         }
     }
 
-    // Proper Cleanup
     UnloadRenderTexture(target);
     CloseWindow();
     if (bufferBytes)
