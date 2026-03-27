@@ -11,5 +11,5 @@ Below is an image of the emulator running the IBM logo test rom!
 # Emulator running on Android 
 ![Alt Text](screenshots/Android.jpeg)
 
-# Emulator running on IBM logo (older version) 
+# Emulator core running IBM logo (older version) 
 ![Alt Text](screenshots/ibmLogo.png)
