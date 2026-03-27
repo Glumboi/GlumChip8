@@ -113,8 +113,7 @@ void Chip8Display_Render(Chip8Display* display, Word activePlanes)
 		{
 			for (int x = 0; x < simW; x++)
 			{
-				// CRITICAL: Always use 128 as the stride for the memory index
-				// because your display->_planes[p] is a 128x64 array.
+				// force 128 as the stride for the memory index
 				if (display->_planes[p][y * 128 + x])
 				{
 					DrawRectangleV(

@@ -1,8 +1,6 @@
 #include "Chip8Keyboard.h"
 #include <raylib.h>
 
-// Map Raylib keys to Chip-8 hex values (0x0 - 0xF)
-// This matches your C# dictionary layout
 static const int RAY_TO_CHIP_MAP[16] = {
 	KEY_X,     // 0x0
 	KEY_ONE,   // 0x1

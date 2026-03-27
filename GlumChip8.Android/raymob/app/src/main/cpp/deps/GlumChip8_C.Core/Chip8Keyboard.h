@@ -4,7 +4,6 @@
 #include "Chip8Defines.h"
 #include <stdbool.h>
 
-// Match the tag name used in your forward declaration in Chip8System.h
 typedef struct _chip8Keyboard
 {
     Word _keys[16];
