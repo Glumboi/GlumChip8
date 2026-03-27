@@ -4,7 +4,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
+#ifndef USE_RAYMOB 
+#include "../GlumChip8.Android/raymob/app/src/main/cpp/deps/raymob/raymob.h"
+#else 
 #include <raylib.h>
+#endif
 
 typedef uint8_t Word;
 typedef uint16_t DoubleWord;

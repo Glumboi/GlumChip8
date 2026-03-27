@@ -2,6 +2,7 @@
 #define CHIP8_DISPLAY_H
 
 #include "Chip8Defines.h"
+#include <string.h>
 
 typedef enum
 {

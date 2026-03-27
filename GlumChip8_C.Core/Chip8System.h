@@ -24,6 +24,6 @@ typedef struct
 } Chip8System;
 
 extern Chip8System g_chip8SystemInstance;
-bool Chip8System_Init(Chip8CPU* cpu, Chip8Display* display, Chip8RAM* ram, Chip8Keyboard* keyboard);
+void Chip8System_Init(Chip8CPU* cpu, Chip8Display* display, Chip8RAM* ram, Chip8Keyboard* keyboard);
 
 #endif	
