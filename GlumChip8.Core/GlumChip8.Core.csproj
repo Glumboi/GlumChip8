@@ -10,6 +10,16 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+	  <None Remove="lib\GlumChip8_C.Core.dll" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Content Include="lib\GlumChip8_C.Core.dll">
+	    <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	  </Content>
+	</ItemGroup>
+
+	<ItemGroup>
 		<PackageReference Include="Raylib-cs" Version="7.0.2" />
 	</ItemGroup>
 
@@ -17,13 +27,6 @@
 		<None Update="Assets\buzz.wav">
 			<CopyToOutputDirectory>Always</CopyToOutputDirectory>
 		</None>
-		<None Update="lib\GlumChip8_C.Core.dll">
-		  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-		</None>
-	</ItemGroup>
-
-	<ItemGroup>
-	  <Folder Include="lib\" />
 	</ItemGroup>
 
 </Project>

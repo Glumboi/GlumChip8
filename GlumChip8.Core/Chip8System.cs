@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks.Sources;
@@ -11,42 +12,42 @@ namespace GlumChip8.Core
     public class Chip8Native
     {
 
-        [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport("./lib/GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern void RunChip8Rom_FromFile(string file);
         // Add these two new methods to match the DLL
 
-        [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("./lib/GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern void Chip8_CPU_Step();
 
-        [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("./lib/GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
         [return: MarshalAs(UnmanagedType.I1)] // Forces 1-byte bool
         public static extern bool Chip8_CPU_GetRunning();
-        [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("./lib/GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
         [return: MarshalAs(UnmanagedType.I1)] // Forces 1-byte bool
         public static extern bool Chip8Display_IsHighRes();
 
-        [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("./lib/GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
         [return: MarshalAs(UnmanagedType.I1)] // Forces 1-byte bool
         public static extern bool Chip8Display_IsPlaneActive(int p);
 
-        [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("./lib/GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern void Chip8_CPU_SetRunning([MarshalAs(UnmanagedType.I1)] bool v);
 
-        [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("./lib/GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern void Chip8_Display_Render();
 
-        [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("./lib/GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern IntPtr Chip8Display_GetPlane(int planeIndex);
 
-        [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("./lib/GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern void Init_Chip8Emulator();
 
-        [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("./lib/GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern void Chip8_Decrement_Timers();
 
-        [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("./lib/GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern void Chip8_Reset_Rom();
-        [DllImport("GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("./lib/GlumChip8_C.Core.dll", CallingConvention = CallingConvention.Cdecl)]
         public static extern void Chip8Keyboard_UpdateKeys([MarshalAs(UnmanagedType.LPArray, SizeConst = 16)] byte[] keys, int lastPressed);
     }
 
@@ -74,9 +75,10 @@ namespace GlumChip8.Core
         const int MAX_CYCLES = 20;
         int cycles = 0;
 
+        private RenderTexture2D _renderTexture;
+
         public Chip8System()
         {
-
         }
 
         public void TogglePause()
@@ -98,6 +100,10 @@ namespace GlumChip8.Core
 
         public void Update()
         {
+
+
+            cycles = 0;
+
             Chip8Native.Chip8Keyboard_UpdateKeys(Keyboard._keys, Keyboard.LastPressed);
 
             double now = Raylib.GetTime();
@@ -119,12 +125,16 @@ namespace GlumChip8.Core
             int simW = isHighRes ? 128 : 64;
             int simH = isHighRes ? 64 : 32;
 
-            float screenW = Raylib.GetScreenWidth();
-            float screenH = Raylib.GetScreenHeight();
+            int screenW = Raylib.GetScreenWidth();
+            int screenH = Raylib.GetScreenHeight();
+            ResizeRenderTexture(screenW, screenH);
 
-            float scaleX = screenW / simW;
-            float scaleY = screenH / simH;
+            int scaleX = screenW / simW;
+            int scaleY = screenH / simH;
+            int scale = (int)MathF.Min(scaleX, scaleY);
 
+            Raylib.BeginTextureMode(_renderTexture);
+            Raylib.ClearBackground(Color.Black);
             unsafe
             {
                 for (int p = 0; p < 2; p++)
@@ -133,7 +143,6 @@ namespace GlumChip8.Core
 
                     byte* plane = (byte*)Chip8Native.Chip8Display_GetPlane(p);
                     if (plane == null) continue;
-
                     Color pColor = (p == 0) ? Color.White : Color.Gray;
 
                     for (int y = 0; y < simH; y++)
@@ -142,26 +151,49 @@ namespace GlumChip8.Core
                         {
                             if (plane[y * 128 + x] != 0)
                             {
-                                Raylib.DrawRectangle(
-                                    (int)(x * scaleX),
-                                    (int)(y * scaleY),
-                                    (int)Math.Ceiling(scaleX),
-                                    (int)Math.Ceiling(scaleY),
-                                    (p == 0) ? Color.White : Color.Gray
-                                );
+                                Raylib.DrawRectangle(x * scale, y * scale, scale, scale, pColor);
                             }
                         }
                     }
                 }
             }
+            Raylib.EndTextureMode();
+
         }
         public void LaunchFromFile(string file)
         {
             Chip8Native.Chip8_CPU_SetRunning(false);
             Chip8Native.RunChip8Rom_FromFile(file);
             Chip8Native.Chip8_CPU_SetRunning(true);
+            if (_renderTexture.Id == 0)
+            {
+                _renderTexture = Raylib.LoadRenderTexture(
+                    Raylib.GetScreenWidth(),
+                    Raylib.GetScreenHeight()
+                );
+            }
         }
 
+        public void DrawRenderTexture()
+        {
+            Raylib.DrawTexturePro(_renderTexture.Texture,
+                new Rectangle(0, 0, _renderTexture.Texture.Width, -_renderTexture.Texture.Height),
+                new Rectangle(0, 0, Raylib.GetScreenWidth(), Raylib.GetScreenHeight()),
+                new(0, 0), 0.0f, Raylib_cs.Color.White);
+        }
+
+        public void ResizeRenderTexture(int w, int h)
+        {
+            if (_renderTexture.Id != 0)
+                Raylib.UnloadRenderTexture(_renderTexture);
+
+            _renderTexture = Raylib.LoadRenderTexture(w, h);
+        }
+
+        ~Chip8System()
+        {
+            Raylib.UnloadRenderTexture(_renderTexture);
+        }
     }
 
 }

@@ -111,6 +111,7 @@ namespace GlumChip8.GUI.Core
                 Raylib.BeginDrawing();
                 Raylib.ClearBackground(Raylib_cs.Color.Black);
                 _chip8System.Update(); // This handles CPU cycle + Raylib Draw calls
+                _chip8System.DrawRenderTexture();
                 if (_displayFps)
                     Raylib.DrawFPS(FPS_OFFSET, FPS_OFFSET);
                 Raylib.EndDrawing();
