@@ -4,5 +4,12 @@ Chip8 emulator written in C#, using raylib for video, audio and input.
 # Note
 Documentation/proper readme will follow for this project once it is more complete, so to speak.
 Below is an image of the emulator running the IBM logo test rom!
-![Alt Text](screenshots/ibmLogo.png)
 
+# Emulator running on windows 
+![Alt Text](screenshots/Windows.png)
+
+# Emulator running on Android 
+![Alt Text](screenshots/Windows.png)
+
+# Emulator running on IBM logo (older version) 
+![Alt Text](screenshots/ibmLogo.png)
