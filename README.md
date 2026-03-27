@@ -6,10 +6,10 @@ Documentation/proper readme will follow for this project once it is more complet
 Below is an image of the emulator running the IBM logo test rom!
 
 # Emulator running on windows 
-![Alt Text](screenshots/Windows.png)
+![Alt Text](screenshots/Windows.jpeg)
 
 # Emulator running on Android 
-![Alt Text](screenshots/Windows.png)
+![Alt Text](screenshots/Windows.jpeg)
 
 # Emulator running on IBM logo (older version) 
 ![Alt Text](screenshots/ibmLogo.png)
